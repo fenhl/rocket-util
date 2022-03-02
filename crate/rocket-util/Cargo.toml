@@ -1,0 +1,15 @@
+[package]
+name = "rocket-util"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rocket = "0.5.0-rc.1"
+
+[dependencies.image]
+version = "0.24"
+default-features = false
+features = ["png"]
+
+[dependencies.rocket-util-derive]
+path = "../rocket-util-derive"

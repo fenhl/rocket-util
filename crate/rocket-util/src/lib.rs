@@ -1,5 +1,7 @@
 use {
     std::{
+        borrow::Cow,
+        convert::Infallible as Never,
         fmt::{
             self,
             Write as _,
@@ -11,18 +13,26 @@ use {
         RgbaImage,
     },
     rocket::{
+        form::{
+            self,
+            FromFormField,
+        },
         http::{
             impl_from_uri_param_identity,
             uri::{
                 self,
                 fmt::{
+                    FromUriParam,
                     Path,
+                    Query,
                     UriDisplay,
                 },
             },
         },
         request::{
+            self,
             FromParam,
+            FromRequest,
             Request,
         },
         response::{
@@ -53,6 +63,49 @@ impl WrappedResponder for RgbaImage {
             Ok(()) => buf.into_inner().respond_to(request),
             Err(e) => Debug(e).respond_to(request),
         }
+    }
+}
+
+/// A URL without a hostname but with an absolute path and optional query.
+///
+/// Wrapper type used here to allow decoding from URI query
+#[derive(Clone)]
+pub(crate) struct Origin<'a>(pub(crate) rocket::http::uri::Origin<'a>);
+
+#[rocket::async_trait]
+impl<'a> FromRequest<'a> for Origin<'a> {
+    type Error = Never;
+
+    async fn from_request(req: &'a Request<'_>) -> request::Outcome<Self, Never> {
+        <&rocket::http::uri::Origin<'_>>::from_request(req).await.map(|origin| Self(origin.clone()))
+    }
+}
+
+impl<'a> FromFormField<'a> for Origin<'a> {
+    fn from_value(field: form::ValueField<'a>) -> form::Result<'a, Self> {
+        Ok(Self(rocket::http::uri::Origin::try_from(field.value).map_err(|e| form::Error::validation(e.to_string()))?))
+    }
+}
+
+impl<'a> UriDisplay<Query> for Origin<'a> {
+    fn fmt(&self, f: &mut rocket::http::uri::fmt::Formatter<'_, Query>) -> fmt::Result {
+        UriDisplay::fmt(&self.0.to_string(), f)
+    }
+}
+
+impl<'a> FromUriParam<Query, rocket::http::uri::Origin<'a>> for Origin<'a> {
+    type Target = Self;
+
+    fn from_uri_param(param: rocket::http::uri::Origin<'a>) -> Self {
+        Self(param)
+    }
+}
+
+impl_from_uri_param_identity!([Query] ('a) Origin<'a>);
+
+impl From<Origin<'_>> for Cow<'_, str> {
+    fn from(Origin(origin): Origin<'_>) -> Self {
+        Self::Owned(origin.to_string())
     }
 }
 

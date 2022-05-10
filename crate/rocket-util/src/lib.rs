@@ -9,11 +9,6 @@ use {
             self,
             Write as _,
         },
-        io::Cursor,
-    },
-    image::{
-        ImageOutputFormat,
-        RgbaImage,
     },
     rocket::{
         form::{
@@ -38,11 +33,16 @@ use {
             FromRequest,
             Request,
         },
-        response::{
-            Debug,
-            Responder,
-        },
+        response::Responder,
     },
+};
+#[cfg(feature = "image")] use {
+    std::io::Cursor,
+    image::{
+        ImageOutputFormat,
+        RgbaImage,
+    },
+    rocket::response::Debug,
 };
 pub use rocket_util_derive::Error;
 #[doc(hidden)] pub use rocket; // used in proc macro
@@ -59,6 +59,7 @@ impl<'r, T: WrappedResponder> Responder<'r, 'static> for Response<T> {
     }
 }
 
+#[cfg(feature = "image")]
 impl WrappedResponder for RgbaImage {
     fn respond_to(self, request: &Request<'_>) -> rocket::response::Result<'static> {
         let mut buf = Cursor::new(Vec::default());

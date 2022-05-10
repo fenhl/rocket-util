@@ -74,7 +74,7 @@ impl WrappedResponder for RgbaImage {
 ///
 /// Wrapper type used here to allow decoding from URI query
 #[derive(Clone)]
-pub(crate) struct Origin<'a>(pub(crate) rocket::http::uri::Origin<'a>);
+pub struct Origin<'a>(pub rocket::http::uri::Origin<'a>);
 
 #[rocket::async_trait]
 impl<'a> FromRequest<'a> for Origin<'a> {

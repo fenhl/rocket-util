@@ -7,6 +7,13 @@ use {
     syn::*,
 };
 
+mod html;
+
+#[proc_macro]
+pub fn html(input: TokenStream) -> TokenStream {
+    html::mac(input)
+}
+
 #[proc_macro_derive(Error)]
 pub fn derive_error(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);

@@ -305,7 +305,7 @@ impl Entry {
                     });
                     let close_tag = format!("</{}>", tag.unraw());
                     quote! {{
-                        let mut buf = quote!((::rocket_util::rocket::response::content::RawHtml(::std::string::ToString::to_string(#open_tag))))
+                        let mut buf = ::std::string::ToString::to_string(#open_tag);
                         #(#attrs)*
                         buf.push('>');
                         #content

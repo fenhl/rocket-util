@@ -49,6 +49,7 @@ pub use {
         html,
     },
     crate::html::{
+        Doctype,
         OptionalAttr,
         ToHtml,
     },

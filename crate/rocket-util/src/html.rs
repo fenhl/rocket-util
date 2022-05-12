@@ -104,3 +104,11 @@ impl OptionalAttr for bool {
         self.then(|| None)
     }
 }
+
+pub struct Doctype;
+
+impl ToHtml for Doctype {
+    fn to_html(&self) -> RawHtml<String> {
+        RawHtml(format!("<!DOCTYPE html>"))
+    }
+}

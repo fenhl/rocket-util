@@ -267,7 +267,7 @@ impl Entry {
                 } else {
                     let content = match content {
                         Content::Empty => quote!(),
-                        Content::Flat(expr) => quote!(buf.push_str(&::rocket_util::ToHtml::to_html(#expr).0);),
+                        Content::Flat(expr) => quote!(buf.push_str(&::rocket_util::ToHtml::to_html(&(#expr)).0);),
                         Content::Nested(Input(entries)) => {
                             let entries = entries.into_iter().map(Entry::to_tokens);
                             quote!(#(buf.push_str(&#entries.0);)*)
@@ -283,7 +283,7 @@ impl Entry {
                             let attr = format!(" {}=\"", name.unraw());
                             quote! {
                                 buf.push_str(#attr);
-                                buf.push_str(&::rocket_util::ToHtml::to_html(#value).0);
+                                buf.push_str(&::rocket_util::ToHtml::to_html(&(#value)).0);
                                 buf.push('"');
                             }
                         }
@@ -296,7 +296,7 @@ impl Entry {
                                     ::core::Option::Some(::core::Option::None) => buf.push_str(#attr_no_value),
                                     ::core::Option::Some(::core::Option::Some(value)) => {
                                         buf.push_str(#attr_with_value);
-                                        buf.push_str(&::rocket_util::ToHtml::to_html(#value).0);
+                                        buf.push_str(&::rocket_util::ToHtml::to_html(&(#value)).0);
                                         buf.push('"');
                                     }
                                 }
@@ -318,7 +318,7 @@ impl Entry {
                 assert!(attrs.is_empty());
                 match content {
                     Content::Empty => quote!((::rocket_util::rocket::response::content::RawHtml(::std::string::String::new()))),
-                    Content::Flat(expr) => quote!((::rocket_util::ToHtml::to_html(#expr))),
+                    Content::Flat(expr) => quote!((::rocket_util::ToHtml::to_html(&(#expr)))),
                     Content::Nested(input) => input.to_tokens(),
                 }
             }

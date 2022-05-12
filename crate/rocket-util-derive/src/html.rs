@@ -257,62 +257,63 @@ impl Entry {
                 }}
             }
             Self::Simple { tag: Some(tag), attrs, content } => {
-                if let "area" | "base" | "br" | "col" | "embed" | "hr" | "img" | "input" | "link" | "meta" | "param" | "source" | "track" | "wbr" = &*tag.unraw().to_string().to_ascii_lowercase() {
-                    if let Content::Empty = content {
-                        let tag = format!("<{}>", tag.unraw());
-                        quote!((::rocket_util::rocket::response::content::RawHtml(::std::string::ToString::to_string(#tag))))
-                    } else {
-                        quote_spanned!(tag.span()=> { compile_error!("this HTML tag must be empty"); })
+                let is_void = matches!(
+                    &*tag.unraw().to_string().to_ascii_lowercase(),
+                    "area" | "base" | "br" | "col" | "embed" | "hr" | "img" | "input" | "link" | "meta" | "param" | "source" | "track" | "wbr"
+                );
+                if is_void && !matches!(content, Content::Empty) {
+                    return quote_spanned!(tag.span()=> { compile_error!("this HTML tag must be empty"); })
+                }
+                let content = match content {
+                    Content::Empty => quote!(),
+                    Content::Flat(expr) => quote!(buf.push_str(&::rocket_util::ToHtml::to_html(&(#expr)).0);),
+                    Content::Nested(Input(entries)) => {
+                        let entries = entries.into_iter().map(Entry::to_tokens);
+                        quote!(#(buf.push_str(&#entries.0);)*)
                     }
-                } else {
-                    let content = match content {
-                        Content::Empty => quote!(),
-                        Content::Flat(expr) => quote!(buf.push_str(&::rocket_util::ToHtml::to_html(&(#expr)).0);),
-                        Content::Nested(Input(entries)) => {
-                            let entries = entries.into_iter().map(Entry::to_tokens);
-                            quote!(#(buf.push_str(&#entries.0);)*)
+                };
+                let open_tag = format!("<{}", tag.unraw());
+                let attrs = attrs.into_iter().map(|Attr { name, value }| match value {
+                    AttrValue::Empty => {
+                        let attr = format!(" {}", name.unraw());
+                        quote!(buf.push_str(#attr);)
+                    }
+                    AttrValue::Simple(value) => {
+                        let attr = format!(" {}=\"", name.unraw());
+                        quote! {
+                            buf.push_str(#attr);
+                            buf.push_str(&::rocket_util::ToHtml::to_html(&(#value)).0);
+                            buf.push('"');
                         }
-                    };
-                    let open_tag = format!("<{}", tag.unraw());
-                    let attrs = attrs.into_iter().map(|Attr { name, value }| match value {
-                        AttrValue::Empty => {
-                            let attr = format!(" {}", name.unraw());
-                            quote!(buf.push_str(#attr);)
-                        }
-                        AttrValue::Simple(value) => {
-                            let attr = format!(" {}=\"", name.unraw());
-                            quote! {
-                                buf.push_str(#attr);
-                                buf.push_str(&::rocket_util::ToHtml::to_html(&(#value)).0);
-                                buf.push('"');
-                            }
-                        }
-                        AttrValue::Optional(value) => {
-                            let attr_no_value = format!(" {}", name.unraw());
-                            let attr_with_value = format!(" {}=\"", name.unraw());
-                            quote! {
-                                match ::rocket_util::OptionalAttr::attr_value(#value) {
-                                    ::core::Option::None => {}
-                                    ::core::Option::Some(::core::Option::None) => buf.push_str(#attr_no_value),
-                                    ::core::Option::Some(::core::Option::Some(value)) => {
-                                        buf.push_str(#attr_with_value);
-                                        buf.push_str(&::rocket_util::ToHtml::to_html(&(#value)).0);
-                                        buf.push('"');
-                                    }
+                    }
+                    AttrValue::Optional(value) => {
+                        let attr_no_value = format!(" {}", name.unraw());
+                        let attr_with_value = format!(" {}=\"", name.unraw());
+                        quote! {
+                            match ::rocket_util::OptionalAttr::attr_value(#value) {
+                                ::core::Option::None => {}
+                                ::core::Option::Some(::core::Option::None) => buf.push_str(#attr_no_value),
+                                ::core::Option::Some(::core::Option::Some(value)) => {
+                                    buf.push_str(#attr_with_value);
+                                    buf.push_str(&::rocket_util::ToHtml::to_html(&(#value)).0);
+                                    buf.push('"');
                                 }
                             }
                         }
-                    });
+                    }
+                });
+                let close_tag = (!is_void).then(|| {
                     let close_tag = format!("</{}>", tag.unraw());
-                    quote! {{
-                        let mut buf = ::std::string::ToString::to_string(#open_tag);
-                        #(#attrs)*
-                        buf.push('>');
-                        #content
-                        buf.push_str(#close_tag);
-                        ::rocket_util::rocket::response::content::RawHtml(buf)
-                    }}
-                }
+                    quote!(buf.push_str(#close_tag);)
+                });
+                quote! {{
+                    let mut buf = ::std::string::ToString::to_string(#open_tag);
+                    #(#attrs)*
+                    buf.push('>');
+                    #content
+                    #close_tag
+                    ::rocket_util::rocket::response::content::RawHtml(buf)
+                }}
             }
             Self::Simple { tag: None, attrs, content } => {
                 assert!(attrs.is_empty());

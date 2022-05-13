@@ -351,5 +351,6 @@ impl Input {
 }
 
 pub(crate) fn mac(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    parse_macro_input!(input as Input).to_tokens().into()
+    let tokens = parse_macro_input!(input as Input).to_tokens();
+    proc_macro::TokenStream::from(quote! {{#[allow(unused) #tokens]}})
 }

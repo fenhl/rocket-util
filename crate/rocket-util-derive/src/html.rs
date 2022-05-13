@@ -190,7 +190,7 @@ impl Parse for Entry {
                 braced!(content in input);
                 let mut arms = Vec::default();
                 while !content.is_empty() {
-                    arms.push(input.parse()?);
+                    arms.push(content.parse()?);
                 }
                 Self::Match { expr, arms }
             } else if lookahead.peek(Token![while]) {

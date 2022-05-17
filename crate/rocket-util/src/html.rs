@@ -26,24 +26,13 @@
 // DEALINGS IN THE SOFTWARE.
 
 use {
-    std::convert::Infallible,
+    std::convert::Infallible as Never,
     rocket::response::content::RawHtml,
 };
 #[cfg(feature = "rocket_csrf")] use {
     rocket_csrf::CsrfToken,
     rocket_util_derive::html_internal,
 };
-
-#[doc(hidden)]
-pub trait NeverHack {
-    type Output;
-}
-
-impl<T> NeverHack for fn() -> T {
-    type Output = T;
-}
-
-type Never = <fn() -> ! as NeverHack>::Output;
 
 pub trait ToHtml {
     fn to_html(&self) -> RawHtml<String>;
@@ -88,15 +77,9 @@ impl<T: ToHtml> ToHtml for Option<T> {
     }
 }
 
-impl ToHtml for Infallible {
-    fn to_html(&self) -> RawHtml<String> {
-        match *self {}
-    }
-}
-
 impl ToHtml for Never {
     fn to_html(&self) -> RawHtml<String> {
-        *self
+        match *self {}
     }
 }
 

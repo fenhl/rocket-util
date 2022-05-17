@@ -29,6 +29,10 @@ use {
     std::convert::Infallible,
     rocket::response::content::RawHtml,
 };
+#[cfg(feature = "rocket_csrf")] use {
+    rocket_csrf::CsrfToken,
+    rocket_util_derive::html_internal,
+};
 
 #[doc(hidden)]
 pub trait NeverHack {
@@ -93,6 +97,15 @@ impl ToHtml for Infallible {
 impl ToHtml for Never {
     fn to_html(&self) -> RawHtml<String> {
         *self
+    }
+}
+
+#[cfg(feature = "rocket_csrf")]
+impl ToHtml for CsrfToken {
+    fn to_html(&self) -> RawHtml<String> {
+        html_internal! {
+            input(type = "hidden", name = "csrf", value = self.authenticity_token());
+        }
     }
 }
 

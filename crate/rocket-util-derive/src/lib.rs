@@ -11,7 +11,13 @@ mod html;
 
 #[proc_macro]
 pub fn html(input: TokenStream) -> TokenStream {
-    html::mac(input)
+    html::mac(input, false)
+}
+
+#[doc(hidden)]
+#[proc_macro]
+pub fn html_internal(input: TokenStream) -> TokenStream {
+    html::mac(input, true)
 }
 
 #[proc_macro_derive(Error)]

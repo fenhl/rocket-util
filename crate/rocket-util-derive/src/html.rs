@@ -124,7 +124,7 @@ impl Parse for MatchArm {
 }
 
 enum Entry {
-    ForLoop {
+    For {
         pat: Pat,
         expr: Expr,
         body: Input,
@@ -138,6 +138,7 @@ enum Entry {
         expr: Expr,
         arms: Vec<MatchArm>,
     },
+    Unreachable,
     While {
         cond: Expr,
         body: Input,
@@ -188,7 +189,7 @@ impl Parse for Entry {
                 let expr = Expr::parse_without_eager_brace(input)?;
                 let content;
                 braced!(content in input);
-                Self::ForLoop { pat, expr, body: content.parse()? }
+                Self::For { pat, expr, body: content.parse()? }
             } else if lookahead.peek(Token![if]) {
                 Self::parse_if(input)?
             } else if lookahead.peek(Token![match]) {
@@ -207,6 +208,12 @@ impl Parse for Entry {
                 let content;
                 braced!(content in input);
                 Self::While { cond, body: content.parse()? }
+            } else if lookahead.peek(Ident) {
+                let ident = input.parse::<Ident>()?;
+                match &*ident.to_string() {
+                    "unreachable" => Self::Unreachable,
+                    _ => return Err(Error::new(ident.span(), "unexpected keyword")),
+                }
             } else {
                 return Err(lookahead.error())
             }
@@ -232,7 +239,7 @@ impl Entry {
     fn to_tokens(self, internal: bool) -> TokenStream {
         let rocket_util = if internal { quote!(crate) } else { quote!(::rocket_util) };
         match self {
-            Self::ForLoop { pat, expr, body } => {
+            Self::For { pat, expr, body } => {
                 let body = body.to_tokens(internal);
                 quote! {{
                     let mut buf = ::std::string::String::new();
@@ -257,6 +264,7 @@ impl Entry {
                 });
                 quote!((match #expr { #(#arms),* }))
             }
+            Self::Unreachable => quote!((unreachable!())),
             Self::While { cond, body } => {
                 let body = body.to_tokens(internal);
                 quote! {{

@@ -67,6 +67,12 @@ impl ToHtml for String {
     }
 }
 
+impl<'a, T: ToHtml> ToHtml for &'a T {
+    fn to_html(&self) -> RawHtml<String> {
+        (*self).to_html()
+    }
+}
+
 impl<T: ToHtml> ToHtml for Option<T> {
     fn to_html(&self) -> RawHtml<String> {
         if let Some(value) = self {

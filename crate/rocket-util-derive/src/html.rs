@@ -291,9 +291,9 @@ impl Entry {
                         let attr_with_value = format!(" {}=\"", name.unraw());
                         quote! {
                             match ::rocket_util::OptionalAttr::attr_value(#value) {
-                                ::core::Option::None => {}
-                                ::core::Option::Some(::core::Option::None) => buf.push_str(#attr_no_value),
-                                ::core::Option::Some(::core::Option::Some(value)) => {
+                                ::core::option::Option::None => {}
+                                ::core::option::Option::Some(::core::option::Option::None) => buf.push_str(#attr_no_value),
+                                ::core::option::Option::Some(::core::option::Option::Some(value)) => {
                                     buf.push_str(#attr_with_value);
                                     buf.push_str(&::rocket_util::ToHtml::to_html(&(#value)).0);
                                     buf.push('"');

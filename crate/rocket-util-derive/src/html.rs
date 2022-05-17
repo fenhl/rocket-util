@@ -149,6 +149,32 @@ enum Entry {
     },
 }
 
+impl Entry {
+    fn parse_if(input: ParseStream<'_>) -> Result<Self> {
+        let _ = input.parse::<Token![if]>()?;
+        let cond = Expr::parse_without_eager_brace(input)?;
+        let content;
+        braced!(content in input);
+        Ok(Self::If {
+            cond,
+            then_branch: content.parse()?,
+            else_branch: if input.peek(Token![else]) {
+                let _ = input.parse::<Token![else]>()?;
+                let lookahead = input.lookahead1();
+                if lookahead.peek(Token![if]) {
+                    Some(Box::new(Self::parse_if(input)?))
+                } else if lookahead.peek(token::Brace) {
+                    Some(Box::new(input.parse()?))
+                } else {
+                    return Err(lookahead.error())
+                }
+            } else {
+                None
+            },
+        })
+    }
+}
+
 impl Parse for Entry {
     fn parse(input: ParseStream<'_>) -> Result<Self> {
         let lookahead = input.lookahead1();
@@ -164,25 +190,7 @@ impl Parse for Entry {
                 braced!(content in input);
                 Self::ForLoop { pat, expr, body: content.parse()? }
             } else if lookahead.peek(Token![if]) {
-                let _ = input.parse::<Token![if]>()?;
-                let cond = Expr::parse_without_eager_brace(input)?;
-                let content;
-                braced!(content in input);
-                Self::If {
-                    cond,
-                    then_branch: content.parse()?,
-                    else_branch: if input.peek(Token![else]) {
-                        let _ = input.parse::<Token![else]>()?;
-                        let lookahead = input.lookahead1();
-                        if lookahead.peek(Token![if]) || lookahead.peek(token::Brace) {
-                            Some(Box::new(input.parse()?))
-                        } else {
-                            return Err(lookahead.error())
-                        }
-                    } else {
-                        None
-                    },
-                }
+                Self::parse_if(input)?
             } else if lookahead.peek(Token![match]) {
                 let _ = input.parse::<Token![match]>()?;
                 let expr = Expr::parse_without_eager_brace(input)?;

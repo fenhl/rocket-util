@@ -89,6 +89,20 @@ impl ToHtml for Never {
     }
 }
 
+macro_rules! impl_to_html_using_to_string {
+    ($($T:ty),*) => {
+        $(
+            impl ToHtml for $T {
+                fn to_html(&self) -> RawHtml<String> {
+                    self.to_string().to_html()
+                }
+            }
+        )*
+    };
+}
+
+impl_to_html_using_to_string!(i8, u8, i16, u16, i32, u32, i64, u64, i128, u128, isize, usize, f32, f64, char);
+
 #[cfg(feature = "rocket_csrf")]
 impl ToHtml for CsrfToken {
     fn to_html(&self) -> RawHtml<String> {

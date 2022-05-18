@@ -312,7 +312,7 @@ impl Entry {
                                 ::core::option::Option::Some(::core::option::Option::None) => buf.push_str(#attr_no_value),
                                 ::core::option::Option::Some(::core::option::Option::Some(value)) => {
                                     buf.push_str(#attr_with_value);
-                                    buf.push_str(&#rocket_util::ToHtml::to_html(&(#value)).0);
+                                    buf.push_str(&#rocket_util::ToHtml::to_html(&value).0);
                                     buf.push('"');
                                 }
                             }

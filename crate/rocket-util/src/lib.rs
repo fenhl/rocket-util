@@ -35,13 +35,17 @@ use {
         response::Responder,
     },
 };
+#[cfg(any(feature = "ics", feature = "image"))] use rocket::{
+    http::ContentType,
+    response::Debug,
+};
+#[cfg(feature = "ics")] use ics::ICalendar;
 #[cfg(feature = "image")] use {
     std::io::Cursor,
     image::{
         ImageOutputFormat,
         RgbaImage,
     },
-    rocket::response::Debug,
 };
 pub use {
     rocket_util_derive::{
@@ -70,12 +74,23 @@ impl<'r, T: WrappedResponder> Responder<'r, 'static> for Response<T> {
     }
 }
 
+#[cfg(feature = "ics")]
+impl WrappedResponder for ICalendar<'_> {
+    fn respond_to(self, request: &Request<'_>) -> rocket::response::Result<'static> {
+        let mut buf = Vec::default();
+        match self.write(&mut buf) {
+            Ok(()) => (ContentType::Calendar, buf).respond_to(request),
+            Err(e) => Debug(e).respond_to(request),
+        }
+    }
+}
+
 #[cfg(feature = "image")]
 impl WrappedResponder for RgbaImage {
     fn respond_to(self, request: &Request<'_>) -> rocket::response::Result<'static> {
         let mut buf = Cursor::new(Vec::default());
         match self.write_to(&mut buf, ImageOutputFormat::Png) {
-            Ok(()) => buf.into_inner().respond_to(request),
+            Ok(()) => (ContentType::PNG, buf.into_inner()).respond_to(request),
             Err(e) => Debug(e).respond_to(request),
         }
     }

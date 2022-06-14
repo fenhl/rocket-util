@@ -63,6 +63,7 @@ pub use {
     },
 };
 #[doc(hidden)] pub use rocket; // used in proc macro
+#[cfg(feature = "rocket_csrf")] pub use rocket_util_derive::CsrfForm;
 
 mod html;
 

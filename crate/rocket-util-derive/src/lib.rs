@@ -20,6 +20,17 @@ pub fn html_internal(input: TokenStream) -> TokenStream {
     html::mac(input, true)
 }
 
+#[proc_macro_derive(CsrfForm)]
+pub fn derive_csrf_form(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    let ty = input.ident;
+    TokenStream::from(quote! {
+        impl ::rocket_util::CsrfForm for #ty {
+            fn csrf(&self) -> &::std::string::String { &self.csrf }
+        }
+    })
+}
+
 #[proc_macro_derive(Error)]
 pub fn derive_error(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);

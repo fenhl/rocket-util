@@ -47,6 +47,10 @@ use {
         RgbaImage,
     },
 };
+#[cfg(feature = "rocket_csrf")] use {
+    rocket::form::Contextual,
+    rocket_csrf::CsrfToken,
+};
 pub use {
     rocket_util_derive::{
         Error,
@@ -61,6 +65,28 @@ pub use {
 #[doc(hidden)] pub use rocket; // used in proc macro
 
 mod html;
+
+#[cfg(feature = "rocket_csrf")]
+pub trait CsrfForm {
+    fn csrf(&self) -> &String;
+}
+
+#[cfg(feature = "rocket_csrf")]
+pub trait ContextualExt {
+    fn verify(&mut self, token: &Option<CsrfToken>);
+}
+
+#[cfg(feature = "rocket_csrf")]
+impl<F: CsrfForm> ContextualExt for Contextual<'_, F> {
+    fn verify(&mut self, token: &Option<CsrfToken>) {
+        if let Some(ref value) = self.value {
+            match token.as_ref().map(|token| token.verify(value.csrf())) {
+                Some(Ok(())) => {}
+                Some(Err(rocket_csrf::VerificationFailure)) | None => self.context.push_error(form::Error::validation("Please submit the form again to confirm your identity.").with_name("csrf")),
+            }
+        }
+    }
+}
 
 pub trait WrappedResponder {
     fn respond_to(self, request: &Request<'_>) -> rocket::response::Result<'static>;

@@ -112,7 +112,7 @@ impl ToHtml for CsrfToken {
     }
 }
 
-/// Members of this trait can be used as the `value` in a `tag(attr? = value)` expression inside the [`html`] macro.
+/// Members of this trait can be used as the `value` in a `tag(attr? = value)` expression inside the [`html`](crate::html!) macro.
 pub trait OptionalAttr {
     type Value: ToHtml;
 

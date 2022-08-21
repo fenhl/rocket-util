@@ -15,6 +15,7 @@ use {
             FromFormField,
         },
         http::{
+            Status,
             impl_from_uri_param_identity,
             uri::{
                 self,
@@ -35,10 +36,7 @@ use {
         response::Responder,
     },
 };
-#[cfg(any(feature = "ics", feature = "image"))] use rocket::{
-    http::ContentType,
-    response::Debug,
-};
+#[cfg(any(feature = "ics", feature = "image"))] use rocket::http::ContentType;
 #[cfg(feature = "ics")] use ics::ICalendar;
 #[cfg(feature = "image")] use {
     std::io::Cursor,
@@ -89,6 +87,19 @@ impl<F: CsrfForm> ContextualExt for Contextual<'_, F> {
     }
 }
 
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct Error<E: std::error::Error>(#[from] pub E);
+
+impl<'r, E: std::error::Error> Responder<'r, 'static> for Error<E> {
+    fn respond_to(self, request: &'r Request<'_>) -> rocket::response::Result<'static> {
+        eprintln!("responded with {} to request to {}", Status::InternalServerError, request.uri());
+        eprintln!("display: {self}");
+        eprintln!("debug: {self:?}");
+        Err(Status::InternalServerError)
+    }
+}
+
 pub trait WrappedResponder {
     fn respond_to(self, request: &Request<'_>) -> rocket::response::Result<'static>;
 }
@@ -107,7 +118,7 @@ impl WrappedResponder for ICalendar<'_> {
         let mut buf = Vec::default();
         match self.write(&mut buf) {
             Ok(()) => (ContentType::Calendar, buf).respond_to(request),
-            Err(e) => Debug(e).respond_to(request),
+            Err(e) => Error(e).respond_to(request),
         }
     }
 }
@@ -118,7 +129,7 @@ impl WrappedResponder for RgbaImage {
         let mut buf = Cursor::new(Vec::default());
         match self.write_to(&mut buf, ImageOutputFormat::Png) {
             Ok(()) => (ContentType::PNG, buf.into_inner()).respond_to(request),
-            Err(e) => Debug(e).respond_to(request),
+            Err(e) => Error(e).respond_to(request),
         }
     }
 }

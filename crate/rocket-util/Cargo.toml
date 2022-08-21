@@ -1,10 +1,11 @@
 [package]
 name = "rocket-util"
-version = "0.2.1"
+version = "0.2.3"
 edition = "2021"
 
 [dependencies]
 rocket = "0.5.0-rc.2"
+thiserror = "1"
 
 [dependencies.ics]
 version = "0.5"

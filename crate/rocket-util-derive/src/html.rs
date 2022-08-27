@@ -138,6 +138,10 @@ enum Entry {
         then_branch: Input,
         else_branch: Option<Box<Entry>>,
     },
+    Let {
+        pat: Pat,
+        init: Expr,
+    },
     Match {
         expr: Expr,
         arms: Vec<MatchArm>,
@@ -196,6 +200,13 @@ impl Parse for Entry {
                 Self::For { pat, expr, body: content.parse()? }
             } else if lookahead.peek(Token![if]) {
                 Self::parse_if(input)?
+            } else if lookahead.peek(Token![let]) {
+                let _ = input.parse::<Token![let]>()?;
+                let pat = input.parse()?;
+                let _ = input.parse::<Token![=]>()?;
+                let init = input.parse()?;
+                let _ = input.parse::<Token![;]>()?;
+                Self::Let { pat, init }
             } else if lookahead.peek(Token![match]) {
                 let _ = input.parse::<Token![match]>()?;
                 let expr = Expr::parse_without_eager_brace(input)?;
@@ -246,9 +257,9 @@ impl Entry {
             Self::For { pat, expr, body } => {
                 let body = body.to_tokens(internal);
                 quote! {{
-                    let mut buf = ::std::string::String::new();
+                    let mut __rocket_util_buf = ::std::string::String::new();
                     for #pat in #expr { buf.push_str(&#body.0) }
-                    #rocket_util::rocket::response::content::RawHtml(buf)
+                    #rocket_util::rocket::response::content::RawHtml(__rocket_util_buf)
                 }}
             }
             Self::If { cond, then_branch, else_branch: Some(else_branch) } => {
@@ -260,6 +271,7 @@ impl Entry {
                 let then_branch = then_branch.to_tokens(internal);
                 quote!((if #cond { #then_branch } else { #rocket_util::rocket::response::content::RawHtml(::std::string::String::new()) }))
             }
+            Self::Let { pat, init } => quote!(let #pat = #init;),
             Self::Match { expr, arms } => {
                 let arms = arms.into_iter().map(|MatchArm { pat, guard, body }| {
                     let guard = guard.map(|guard| quote!(if #guard));
@@ -272,9 +284,9 @@ impl Entry {
             Self::While { cond, body } => {
                 let body = body.to_tokens(internal);
                 quote! {{
-                    let mut buf = ::std::string::String::new();
+                    let mut __rocket_util_buf = ::std::string::String::new();
                     while #cond { buf.push_str(&#body.0) }
-                    #rocket_util::rocket::response::content::RawHtml(buf)
+                    #rocket_util::rocket::response::content::RawHtml(__rocket_util_buf)
                 }}
             }
             Self::Simple { tag: Some(tag), attrs, content } => {
@@ -287,24 +299,24 @@ impl Entry {
                 }
                 let content = match content {
                     Content::Empty => quote!(),
-                    Content::Flat(expr) => quote!(buf.push_str(&#rocket_util::ToHtml::to_html(&(#expr)).0);),
+                    Content::Flat(expr) => quote!(__rocket_util_buf.push_str(&#rocket_util::ToHtml::to_html(&(#expr)).0);),
                     Content::Nested(Input(entries)) => {
                         let entries = entries.into_iter().map(|entry| entry.to_tokens(internal));
-                        quote!(#(buf.push_str(&#entries.0);)*)
+                        quote!(#(__rocket_util_buf.push_str(&#entries.0);)*)
                     }
                 };
                 let open_tag = format!("<{}", tag.unraw());
                 let attrs = attrs.into_iter().map(|Attr { name, value }| match value {
                     AttrValue::Empty => {
                         let attr = format!(" {}", name.unraw().to_string().to_case(Case::Kebab));
-                        quote!(buf.push_str(#attr);)
+                        quote!(__rocket_util_buf.push_str(#attr);)
                     }
                     AttrValue::Simple(value) => {
                         let attr = format!(" {}=\"", name.unraw().to_string().to_case(Case::Kebab));
                         quote! {
-                            buf.push_str(#attr);
-                            buf.push_str(&#rocket_util::ToHtml::to_html(&(#value)).0);
-                            buf.push('"');
+                            __rocket_util_buf.push_str(#attr);
+                            __rocket_util_buf.push_str(&#rocket_util::ToHtml::to_html(&(#value)).0);
+                            __rocket_util_buf.push('"');
                         }
                     }
                     AttrValue::Optional(value) => {
@@ -313,11 +325,11 @@ impl Entry {
                         quote! {
                             match #rocket_util::OptionalAttr::attr_value(#value) {
                                 ::core::option::Option::None => {}
-                                ::core::option::Option::Some(::core::option::Option::None) => buf.push_str(#attr_no_value),
-                                ::core::option::Option::Some(::core::option::Option::Some(value)) => {
-                                    buf.push_str(#attr_with_value);
-                                    buf.push_str(&#rocket_util::ToHtml::to_html(&value).0);
-                                    buf.push('"');
+                                ::core::option::Option::Some(::core::option::Option::None) => __rocket_util_buf.push_str(#attr_no_value),
+                                ::core::option::Option::Some(::core::option::Option::Some(__rocket_util_value)) => {
+                                    __rocket_util_buf.push_str(#attr_with_value);
+                                    __rocket_util_buf.push_str(&#rocket_util::ToHtml::to_html(&__rocket_util_value).0);
+                                    __rocket_util_buf.push('"');
                                 }
                             }
                         }
@@ -325,15 +337,15 @@ impl Entry {
                 });
                 let close_tag = (!is_void).then(|| {
                     let close_tag = format!("</{}>", tag.unraw());
-                    quote!(buf.push_str(#close_tag);)
+                    quote!(__rocket_util_buf.push_str(#close_tag);)
                 });
                 quote! {{
-                    let mut buf = ::std::string::ToString::to_string(#open_tag);
+                    let mut __rocket_util_buf = ::std::string::ToString::to_string(#open_tag);
                     #(#attrs)*
-                    buf.push('>');
+                    __rocket_util_buf.push('>');
                     #content
                     #close_tag
-                    #rocket_util::rocket::response::content::RawHtml(buf)
+                    #rocket_util::rocket::response::content::RawHtml(__rocket_util_buf)
                 }}
             }
             Self::Simple { tag: None, attrs, content } => {
@@ -365,9 +377,9 @@ impl Input {
         let rocket_util = if internal { quote!(crate) } else { quote!(::rocket_util) };
         let entries = self.0.into_iter().map(|entry| entry.to_tokens(internal));
         quote! {{
-            let mut buf = ::std::string::String::new();
-            #(buf.push_str(&#entries.0);)*
-            #rocket_util::rocket::response::content::RawHtml(buf)
+            let mut __rocket_util_buf = ::std::string::String::new();
+            #(__rocket_util_buf.push_str(&#entries.0);)*
+            #rocket_util::rocket::response::content::RawHtml(__rocket_util_buf)
         }}
     }
 }

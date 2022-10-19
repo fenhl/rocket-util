@@ -146,6 +146,7 @@ enum Entry {
         expr: Expr,
         arms: Vec<MatchArm>,
     },
+    Unimplemented,
     Unreachable,
     While {
         cond: Expr,
@@ -226,6 +227,7 @@ impl Parse for Entry {
             } else if lookahead.peek(Ident) {
                 let ident = input.parse::<Ident>()?;
                 match &*ident.to_string() {
+                    "unimplemented" => Self::Unimplemented,
                     "unreachable" => Self::Unreachable,
                     _ => return Err(Error::new(ident.span(), "unexpected keyword")),
                 }
@@ -280,6 +282,7 @@ impl Entry {
                 });
                 quote!((match #expr { #(#arms),* }))
             }
+            Self::Unimplemented => quote!((unimplemented!())),
             Self::Unreachable => quote!((unreachable!())),
             Self::While { cond, body } => {
                 let body = body.to_tokens(internal);

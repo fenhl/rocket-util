@@ -14,7 +14,7 @@ mod html;
 /// * This macro expands to an expression of type `RawHtml<String>` rather than `FnRenderer`. This also means that any expressions used in the macro are eagerly evaluated.
 /// * This macro supports `@let`.
 /// * This macro supports `@match`. Don't use commas to separate the match arms.
-/// * This macro also supports `@unreachable` to work around type inference issues with using `: unreachable!();`.
+/// * This macro also supports `@unimplemented` and `@unreachable` to work around type inference issues with using `: unimplemented!();` or `: unreachable!();`.
 /// * HTML attributes with hyphens should be written with underscores instead, e.g. write `data_foo` instead of `data-foo`.
 #[proc_macro]
 pub fn html(input: TokenStream) -> TokenStream {

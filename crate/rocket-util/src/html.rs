@@ -76,8 +76,8 @@ impl<'a, T: ToHtml> ToHtml for &'a T {
     }
 }
 
-impl<'a, T: ToHtml + ToOwned> ToHtml for Cow<'a, T>
-where T::Owned: ToHtml {
+impl<'a, T: ToOwned + ?Sized> ToHtml for Cow<'a, T>
+where &'a T: ToHtml, T::Owned: ToHtml {
     fn to_html(&self) -> RawHtml<String> {
         match self {
             Self::Borrowed(borrowed) => borrowed.to_html(),

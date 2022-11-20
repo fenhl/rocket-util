@@ -26,7 +26,10 @@
 // DEALINGS IN THE SOFTWARE.
 
 use {
-    std::convert::Infallible as Never,
+    std::{
+        borrow::Cow,
+        convert::Infallible as Never,
+    },
     rocket::response::content::RawHtml,
 };
 #[cfg(feature = "rocket_csrf")] use {
@@ -70,6 +73,16 @@ impl ToHtml for String {
 impl<'a, T: ToHtml> ToHtml for &'a T {
     fn to_html(&self) -> RawHtml<String> {
         (*self).to_html()
+    }
+}
+
+impl<'a, T: ToHtml + ToOwned> ToHtml for Cow<'a, T>
+where T::Owned: ToHtml {
+    fn to_html(&self) -> RawHtml<String> {
+        match self {
+            Self::Borrowed(borrowed) => borrowed.to_html(),
+            Self::Owned(owned) => owned.to_html(),
+        }
     }
 }
 

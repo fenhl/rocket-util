@@ -36,15 +36,6 @@ use {
         response::Responder,
     },
 };
-#[cfg(any(feature = "ics", feature = "image"))] use rocket::http::ContentType;
-#[cfg(feature = "ics")] use ics::ICalendar;
-#[cfg(feature = "image")] use {
-    std::io::Cursor,
-    image::{
-        ImageOutputFormat,
-        RgbaImage,
-    },
-};
 #[cfg(feature = "rocket_csrf")] use {
     rocket::form::Contextual,
     rocket_csrf::CsrfToken,
@@ -54,16 +45,23 @@ pub use {
         Error,
         html,
     },
-    crate::html::{
-        Doctype,
-        OptionalAttr,
-        ToHtml,
+    crate::{
+        html::{
+            Doctype,
+            OptionalAttr,
+            ToHtml,
+        },
+        response::{
+            Response,
+            WrappedResponder,
+        },
     },
 };
 #[doc(hidden)] pub use rocket; // used in proc macro
 #[cfg(feature = "rocket_csrf")] pub use rocket_util_derive::CsrfForm;
 
 mod html;
+mod response;
 
 #[cfg(feature = "rocket_csrf")]
 pub trait CsrfForm {
@@ -97,40 +95,6 @@ impl<'r, E: std::error::Error> Responder<'r, 'static> for Error<E> {
         eprintln!("display: {self}");
         eprintln!("debug: {self:?}");
         Err(Status::InternalServerError)
-    }
-}
-
-pub trait WrappedResponder {
-    fn respond_to(self, request: &Request<'_>) -> rocket::response::Result<'static>;
-}
-
-pub struct Response<T: WrappedResponder>(pub T);
-
-impl<'r, T: WrappedResponder> Responder<'r, 'static> for Response<T> {
-    fn respond_to(self, request: &'r Request<'_>) -> rocket::response::Result<'static> {
-        WrappedResponder::respond_to(self.0, request)
-    }
-}
-
-#[cfg(feature = "ics")]
-impl WrappedResponder for ICalendar<'_> {
-    fn respond_to(self, request: &Request<'_>) -> rocket::response::Result<'static> {
-        let mut buf = Vec::default();
-        match self.write(&mut buf) {
-            Ok(()) => (ContentType::Calendar, buf).respond_to(request),
-            Err(e) => Error(e).respond_to(request),
-        }
-    }
-}
-
-#[cfg(feature = "image")]
-impl WrappedResponder for RgbaImage {
-    fn respond_to(self, request: &Request<'_>) -> rocket::response::Result<'static> {
-        let mut buf = Cursor::new(Vec::default());
-        match self.write_to(&mut buf, ImageOutputFormat::Png) {
-            Ok(()) => (ContentType::PNG, buf.into_inner()).respond_to(request),
-            Err(e) => Error(e).respond_to(request),
-        }
     }
 }
 

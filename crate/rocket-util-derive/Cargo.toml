@@ -10,4 +10,4 @@ proc-macro = true
 convert_case = "0.6"
 proc-macro2 = "1"
 quote = "1"
-syn = "1"
+syn = "2"

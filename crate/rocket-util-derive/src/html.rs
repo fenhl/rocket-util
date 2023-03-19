@@ -115,7 +115,7 @@ struct MatchArm {
 
 impl Parse for MatchArm {
     fn parse(input: ParseStream<'_>) -> Result<Self> {
-        let pat = input.parse()?;
+        let pat = Pat::parse_multi_with_leading_vert(input)?;
         let guard = if input.peek(Token![if]) {
             let _ = input.parse::<Token![if]>()?;
             Some(Box::new(input.parse()?))
@@ -193,7 +193,7 @@ impl Parse for Entry {
             let lookahead = input.lookahead1();
             if lookahead.peek(Token![for]) {
                 let _ = input.parse::<Token![for]>()?;
-                let pat = input.parse()?;
+                let pat = Pat::parse_multi(input)?;
                 let _ = input.parse::<Token![in]>()?;
                 let expr = Expr::parse_without_eager_brace(input)?;
                 let content;
@@ -203,7 +203,7 @@ impl Parse for Entry {
                 Self::parse_if(input)?
             } else if lookahead.peek(Token![let]) {
                 let _ = input.parse::<Token![let]>()?;
-                let pat = input.parse()?;
+                let pat = Pat::parse_multi(input)?;
                 let _ = input.parse::<Token![=]>()?;
                 let init = input.parse()?;
                 let _ = input.parse::<Token![;]>()?;
@@ -239,7 +239,7 @@ impl Parse for Entry {
             let attrs = if input.peek(token::Paren) {
                 let content;
                 parenthesized!(content in input);
-                content.parse_terminated::<_, Token![,]>(Attr::parse)?.into_iter().collect()
+                content.parse_terminated(Attr::parse, Token![,])?.into_iter().collect()
             } else {
                 Vec::default()
             };
@@ -266,7 +266,7 @@ impl Entry {
             }
             Self::If { cond, then_branch, else_branch: Some(else_branch) } => {
                 let then_branch = then_branch.to_tokens(internal);
-                let else_branch = else_branch.to_tokens(internal).expect("can't have @let as @if body");
+                let else_branch = else_branch.to_tokens(internal)?;
                 quote!((if #cond { #then_branch } else { #else_branch }))
             }
             Self::If { cond, then_branch, else_branch: None } => {
@@ -277,9 +277,9 @@ impl Entry {
             Self::Match { expr, arms } => {
                 let arms = arms.into_iter().map(|MatchArm { pat, guard, body }| {
                     let guard = guard.map(|guard| quote!(if #guard));
-                    let body = body.to_tokens(internal).expect("can't have @let as @match arm body");
-                    quote!(#pat #guard => #body)
-                });
+                    let body = body.to_tokens(internal)?;
+                    Ok(quote!(#pat #guard => #body))
+                }).collect::<std::result::Result<Vec<_>, _>>()?;
                 quote!((match #expr { #(#arms),* }))
             }
             Self::Unimplemented => quote!((unimplemented!())),

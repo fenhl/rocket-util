@@ -7,7 +7,6 @@ edition.workspace = true
 reqwest = ["dep:reqwest", "futures", "tokio-util"]
 
 [dependencies]
-rocket = "0.5.0-rc.2"
 thiserror = "1"
 
 [dependencies.futures]
@@ -30,6 +29,10 @@ version = "0.11"
 default-features = false
 features = ["stream"]
 optional = true
+
+[dependencies.rocket]
+git = "https://github.com/SergioBenitez/Rocket"
+branch = "master"
 
 [dependencies.rocket_csrf]
 git = "https://github.com/fenhl/rocket_csrf"

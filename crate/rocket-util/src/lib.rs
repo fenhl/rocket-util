@@ -166,3 +166,30 @@ impl<'a, T: UriDisplay<Path>> UriDisplay<Path> for Suffix<'a, T> {
 }
 
 impl_from_uri_param_identity!([Path] ('a, T: UriDisplay<Path>) Suffix<'a, T>);
+
+pub struct OptSuffix<'a, T>(pub T, pub Option<&'a str>);
+
+impl<'a, T: FromParam<'a>> FromParam<'a> for OptSuffix<'a, T> {
+    type Error = T::Error;
+
+    fn from_param(param: &'a str) -> Result<Self, T::Error> {
+        let (prefix, suffix) = if let Some((prefix, suffix)) = param.rsplit_once('.') {
+            (prefix, Some(suffix))
+        } else {
+            (param, None)
+        };
+        Ok(Self(T::from_param(prefix)?, suffix))
+    }
+}
+
+impl<'a, T: UriDisplay<Path>> UriDisplay<Path> for OptSuffix<'a, T> {
+    fn fmt(&self, f: &mut uri::fmt::Formatter<'_, Path>) -> fmt::Result {
+        self.0.fmt(f)?;
+        if let Some(suffix) = self.1 {
+            write!(f, ".{suffix}")?; //TODO ensure URI safety
+        }
+        Ok(())
+    }
+}
+
+impl_from_uri_param_identity!([Path] ('a, T: UriDisplay<Path>) OptSuffix<'a, T>);

@@ -141,6 +141,12 @@ impl From<Origin<'_>> for Cow<'_, str> {
     }
 }
 
+impl fmt::Display for Origin<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
 pub struct Suffix<'a, T>(pub T, pub &'a str);
 
 #[derive(Debug)]

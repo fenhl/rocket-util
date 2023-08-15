@@ -302,7 +302,25 @@ impl Entry {
                 }
                 let content = match content {
                     Content::Empty => quote!(),
-                    Content::Flat(expr) => quote!(__rocket_util_buf.push_str(&#rocket_util::ToHtml::to_html(&(#expr)).0);),
+                    Content::Flat(expr) => match expr {
+                        Expr::Lit(ExprLit { attrs, lit: Lit::Str(s) }) if attrs.is_empty() => {
+                            // special-case string literals to ensure HTML escaping is done at compile time
+                            let mut escaped = Vec::with_capacity(s.value().len());
+                            for b in s.value().bytes() {
+                                match b {
+                                    b'"' => escaped.extend_from_slice(b"&quot;"),
+                                    b'&' => escaped.extend_from_slice(b"&amp;"),
+                                    b'<' => escaped.extend_from_slice(b"&lt;"),
+                                    b'>' => escaped.extend_from_slice(b"&gt;"),
+                                    _ => escaped.push(b),
+                                }
+                            }
+                            //SAFETY: `escaped` is derived from a valid UTF-8 string, with only ASCII characters replaced with other ASCII characters. Since UTF-8 is self-synchronizing, `escaped` remains valid UTF-8.
+                            let escaped = unsafe { String::from_utf8_unchecked(escaped) };
+                            quote!(__rocket_util_buf.push_str(#escaped);)
+                        }
+                        _ => quote!(__rocket_util_buf.push_str(&#rocket_util::ToHtml::to_html(&(#expr)).0);),
+                    },
                     Content::Nested(Input(entries)) => {
                         entries.into_iter().map(|entry| match entry.to_tokens(internal) {
                             Ok(entry) => quote!(__rocket_util_buf.push_str(&#entry.0);),
@@ -357,7 +375,25 @@ impl Entry {
                 assert!(attrs.is_empty());
                 match content {
                     Content::Empty => quote!((#rocket_util::rocket::response::content::RawHtml(::std::string::String::new()))),
-                    Content::Flat(expr) => quote!((#rocket_util::ToHtml::to_html(&(#expr)))),
+                    Content::Flat(expr) => match expr {
+                        Expr::Lit(ExprLit { attrs, lit: Lit::Str(s) }) if attrs.is_empty() => {
+                            // special-case string literals to ensure HTML escaping is done at compile time
+                            let mut escaped = Vec::with_capacity(s.value().len());
+                            for b in s.value().bytes() {
+                                match b {
+                                    b'"' => escaped.extend_from_slice(b"&quot;"),
+                                    b'&' => escaped.extend_from_slice(b"&amp;"),
+                                    b'<' => escaped.extend_from_slice(b"&lt;"),
+                                    b'>' => escaped.extend_from_slice(b"&gt;"),
+                                    _ => escaped.push(b),
+                                }
+                            }
+                            //SAFETY: `escaped` is derived from a valid UTF-8 string, with only ASCII characters replaced with other ASCII characters. Since UTF-8 is self-synchronizing, `escaped` remains valid UTF-8.
+                            let escaped = unsafe { String::from_utf8_unchecked(escaped) };
+                            quote!((#rocket_util::rocket::response::content::RawHtml(::std::string::ToString::to_string(#escaped))))
+                        }
+                        _ => quote!((#rocket_util::ToHtml::to_html(&(#expr)))),
+                    },
                     Content::Nested(input) => input.to_tokens(internal),
                 }
             }

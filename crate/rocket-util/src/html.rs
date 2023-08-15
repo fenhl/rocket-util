@@ -114,7 +114,7 @@ macro_rules! impl_to_html_using_to_string {
     };
 }
 
-impl_to_html_using_to_string!(i8, u8, i16, u16, i32, u32, i64, u64, i128, u128, isize, usize, f32, f64, char);
+impl_to_html_using_to_string!(i8, u8, i16, u16, i32, u32, i64, u64, i128, u128, isize, usize, f32, f64, char, crate::Origin<'_>, rocket::http::uri::Origin<'_>);
 
 #[cfg(feature = "rocket_csrf")]
 impl ToHtml for CsrfToken {

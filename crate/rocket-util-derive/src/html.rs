@@ -26,10 +26,6 @@
 // DEALINGS IN THE SOFTWARE.
 
 use {
-    convert_case::{
-        Case,
-        Casing as _,
-    },
     proc_macro2::TokenStream,
     quote::{
         quote,
@@ -331,11 +327,11 @@ impl Entry {
                 let open_tag = format!("<{}", tag.unraw());
                 let attrs = attrs.into_iter().map(|Attr { name, value }| match value {
                     AttrValue::Empty => {
-                        let attr = format!(" {}", name.unraw().to_string().to_case(Case::Kebab));
+                        let attr = format!(" {}", name.unraw().to_string().replace('_', "-"));
                         quote!(__rocket_util_buf.push_str(#attr);)
                     }
                     AttrValue::Simple(value) => {
-                        let attr = format!(" {}=\"", name.unraw().to_string().to_case(Case::Kebab));
+                        let attr = format!(" {}=\"", name.unraw().to_string().replace('_', "-"));
                         quote! {
                             __rocket_util_buf.push_str(#attr);
                             __rocket_util_buf.push_str(&#rocket_util::ToHtml::to_html(&(#value)).0);
@@ -343,8 +339,8 @@ impl Entry {
                         }
                     }
                     AttrValue::Optional(value) => {
-                        let attr_no_value = format!(" {}", name.unraw().to_string().to_case(Case::Kebab));
-                        let attr_with_value = format!(" {}=\"", name.unraw().to_string().to_case(Case::Kebab));
+                        let attr_no_value = format!(" {}", name.unraw().to_string().replace('_', "-"));
+                        let attr_with_value = format!(" {}=\"", name.unraw().to_string().replace('_', "-"));
                         quote! {
                             match #rocket_util::OptionalAttr::attr_value(#value) {
                                 ::core::option::Option::None => {}

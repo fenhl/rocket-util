@@ -7,7 +7,7 @@ edition.workspace = true
 reqwest = ["dep:reqwest", "futures", "tokio-util"]
 
 [dependencies]
-rocket = "0.5.0-rc.2"
+rocket = "0.5"
 thiserror = "1"
 
 [dependencies.futures]
@@ -33,7 +33,7 @@ optional = true
 
 [dependencies.rocket_csrf]
 git = "https://github.com/fenhl/rocket_csrf"
-branch = "impl-error"
+branch = "rocket05"
 optional = true
 
 [dependencies.rocket-util-derive]

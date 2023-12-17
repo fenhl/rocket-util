@@ -249,44 +249,36 @@ impl Parse for Entry {
 }
 
 impl Entry {
-    fn to_tokens(self, internal: bool) -> std::result::Result<TokenStream, (Pat, Expr)> {
+    fn to_tokens(self, internal: bool) -> TokenStream {
         let rocket_util = if internal { quote!(crate) } else { quote!(::rocket_util) };
-        Ok(match self {
+        match self {
             Self::For { pat, expr, body } => {
-                let body = body.to_tokens(internal);
-                quote! {{
-                    let mut __rocket_util_buf = ::std::string::String::new();
-                    for #pat in #expr { __rocket_util_buf.push_str(&#body.0) }
-                    #rocket_util::rocket::response::content::RawHtml(__rocket_util_buf)
-                }}
+                let body = body.0.into_iter().map(|entry| entry.to_tokens(internal));
+                quote!(for #pat in #expr { #(#body)* })
             }
             Self::If { cond, then_branch, else_branch: Some(else_branch) } => {
-                let then_branch = then_branch.to_tokens(internal);
-                let else_branch = else_branch.to_tokens(internal)?;
-                quote!((if #cond { #then_branch } else { #else_branch }))
+                let then_branch = then_branch.0.into_iter().map(|entry| entry.to_tokens(internal));
+                let else_branch = else_branch.to_tokens(internal);
+                quote!(if #cond { #(#then_branch)* } else { #else_branch })
             }
             Self::If { cond, then_branch, else_branch: None } => {
-                let then_branch = then_branch.to_tokens(internal);
-                quote!((if #cond { #then_branch } else { #rocket_util::rocket::response::content::RawHtml(::std::string::String::new()) }))
+                let then_branch = then_branch.0.into_iter().map(|entry| entry.to_tokens(internal));
+                quote!(if #cond { #(#then_branch)* })
             }
-            Self::Let { pat, init } => return Err((pat, init)),
+            Self::Let { pat, init } => quote!(let #pat = #init;),
             Self::Match { expr, arms } => {
                 let arms = arms.into_iter().map(|MatchArm { pat, guard, body }| {
                     let guard = guard.map(|guard| quote!(if #guard));
-                    let body = body.to_tokens(internal)?;
-                    Ok(quote!(#pat #guard => #body))
-                }).collect::<std::result::Result<Vec<_>, _>>()?;
-                quote!((match #expr { #(#arms),* }))
+                    let body = body.to_tokens(internal);
+                    quote!(#pat #guard => { #body })
+                });
+                quote!(match #expr { #(#arms),* })
             }
-            Self::Unimplemented => quote!((unimplemented!())),
-            Self::Unreachable => quote!((unreachable!())),
+            Self::Unimplemented => quote!(unimplemented!();), //TODO stop generating code after this
+            Self::Unreachable => quote!(unreachable!();), //TODO stop generating code after this
             Self::While { cond, body } => {
-                let body = body.to_tokens(internal);
-                quote! {{
-                    let mut __rocket_util_buf = ::std::string::String::new();
-                    while #cond { __rocket_util_buf.push_str(&#body.0) }
-                    #rocket_util::rocket::response::content::RawHtml(__rocket_util_buf)
-                }}
+                let body = body.0.into_iter().map(|entry| entry.to_tokens(internal));
+                quote!(while #cond { #(#body)* })
             }
             Self::Simple { tag: Some(tag), attrs, content } => {
                 let is_void = matches!(
@@ -294,7 +286,7 @@ impl Entry {
                     "area" | "base" | "br" | "col" | "embed" | "hr" | "img" | "input" | "link" | "meta" | "param" | "source" | "track" | "wbr"
                 );
                 if is_void && !matches!(content, Content::Empty) {
-                    return Ok(quote_spanned!(tag.span()=> { compile_error!("this HTML tag must be empty"); }))
+                    return quote_spanned!(tag.span()=> compile_error!("this HTML tag must be empty");)
                 }
                 let content = match content {
                     Content::Empty => quote!(),
@@ -318,10 +310,8 @@ impl Entry {
                         _ => quote!(__rocket_util_buf.push_str(&#rocket_util::ToHtml::to_html(&(#expr)).0);),
                     },
                     Content::Nested(Input(entries)) => {
-                        entries.into_iter().map(|entry| match entry.to_tokens(internal) {
-                            Ok(entry) => quote!(__rocket_util_buf.push_str(&#entry.0);),
-                            Err((pat, init)) => quote!(let #pat = #init;),
-                        }).collect()
+                        let body = entries.into_iter().map(|entry| entry.to_tokens(internal));
+                        quote! {{ #(#body)* }}
                     }
                 };
                 let open_tag = format!("<{}", tag.unraw());
@@ -358,19 +348,18 @@ impl Entry {
                     let close_tag = format!("</{}>", tag.unraw());
                     quote!(__rocket_util_buf.push_str(#close_tag);)
                 });
-                quote! {{
-                    let mut __rocket_util_buf = ::std::string::ToString::to_string(#open_tag);
+                quote! {
+                    __rocket_util_buf.push_str(#open_tag);
                     #(#attrs)*
                     __rocket_util_buf.push('>');
                     #content
                     #close_tag
-                    #rocket_util::rocket::response::content::RawHtml(__rocket_util_buf)
-                }}
+                }
             }
             Self::Simple { tag: None, attrs, content } => {
                 assert!(attrs.is_empty());
                 match content {
-                    Content::Empty => quote!((#rocket_util::rocket::response::content::RawHtml(::std::string::String::new()))),
+                    Content::Empty => quote!(),
                     Content::Flat(expr) => match expr {
                         Expr::Lit(ExprLit { attrs, lit: Lit::Str(s) }) if attrs.is_empty() => {
                             // special-case string literals to ensure HTML escaping is done at compile time
@@ -386,14 +375,17 @@ impl Entry {
                             }
                             //SAFETY: `escaped` is derived from a valid UTF-8 string, with only ASCII characters replaced with other ASCII characters. Since UTF-8 is self-synchronizing, `escaped` remains valid UTF-8.
                             let escaped = unsafe { String::from_utf8_unchecked(escaped) };
-                            quote!((#rocket_util::rocket::response::content::RawHtml(::std::string::ToString::to_string(#escaped))))
+                            quote!(__rocket_util_buf.push_str(#escaped);)
                         }
-                        _ => quote!((#rocket_util::ToHtml::to_html(&(#expr)))),
+                        _ => quote!(__rocket_util_buf.push_str(&#rocket_util::ToHtml::to_html(&(#expr)).0);),
                     },
-                    Content::Nested(input) => input.to_tokens(internal),
+                    Content::Nested(Input(entries)) => {
+                        let body = entries.into_iter().map(|entry| entry.to_tokens(internal));
+                        quote! {{ #(#body)* }}
+                    }
                 }
             }
-        })
+        }
     }
 }
 
@@ -412,10 +404,7 @@ impl Parse for Input {
 impl Input {
     fn to_tokens(self, internal: bool) -> TokenStream {
         let rocket_util = if internal { quote!(crate) } else { quote!(::rocket_util) };
-        let entries = self.0.into_iter().map(|entry| match entry.to_tokens(internal) {
-            Ok(entry) => quote!(__rocket_util_buf.push_str(&#entry.0);),
-            Err((pat, init)) => quote!(let #pat = #init;),
-        });
+        let entries = self.0.into_iter().map(|entry| entry.to_tokens(internal));
         quote! {{
             let mut __rocket_util_buf = ::std::string::String::new();
             #(#entries)*
@@ -426,5 +415,5 @@ impl Input {
 
 pub(crate) fn mac(input: proc_macro::TokenStream, internal: bool) -> proc_macro::TokenStream {
     let tokens = parse_macro_input!(input as Input).to_tokens(internal);
-    proc_macro::TokenStream::from(quote! {{#[allow(unused)] #tokens}})
+    proc_macro::TokenStream::from(quote! {{ #[allow(unused)] #tokens }})
 }

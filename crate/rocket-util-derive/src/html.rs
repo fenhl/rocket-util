@@ -41,6 +41,21 @@ use {
     },
 };
 
+fn escape_html(s: &str) -> String {
+    let mut escaped = Vec::with_capacity(s.len());
+    for b in s.bytes() {
+        match b {
+            b'"' => escaped.extend_from_slice(b"&quot;"),
+            b'&' => escaped.extend_from_slice(b"&amp;"),
+            b'<' => escaped.extend_from_slice(b"&lt;"),
+            b'>' => escaped.extend_from_slice(b"&gt;"),
+            _ => escaped.push(b),
+        }
+    }
+    //SAFETY: `escaped` is derived from a valid UTF-8 string, with only ASCII characters replaced with other ASCII characters. Since UTF-8 is self-synchronizing, `escaped` remains valid UTF-8.
+    unsafe { String::from_utf8_unchecked(escaped) }
+}
+
 enum AttrValue {
     Empty,
     Simple(Expr),
@@ -250,6 +265,9 @@ impl Parse for Entry {
 
 impl Entry {
     fn to_tokens(self, internal: bool) -> TokenStream {
+        if let Some(html) = self.to_string() {
+            return quote!(__rocket_util_buf.push_str(#html);)
+        }
         let rocket_util = if internal { quote!(crate) } else { quote!(::rocket_util) };
         match self {
             Self::For { pat, expr, body } => {
@@ -292,19 +310,7 @@ impl Entry {
                     Content::Empty => quote!(),
                     Content::Flat(expr) => match expr {
                         Expr::Lit(ExprLit { attrs, lit: Lit::Str(s) }) if attrs.is_empty() => {
-                            // special-case string literals to ensure HTML escaping is done at compile time
-                            let mut escaped = Vec::with_capacity(s.value().len());
-                            for b in s.value().bytes() {
-                                match b {
-                                    b'"' => escaped.extend_from_slice(b"&quot;"),
-                                    b'&' => escaped.extend_from_slice(b"&amp;"),
-                                    b'<' => escaped.extend_from_slice(b"&lt;"),
-                                    b'>' => escaped.extend_from_slice(b"&gt;"),
-                                    _ => escaped.push(b),
-                                }
-                            }
-                            //SAFETY: `escaped` is derived from a valid UTF-8 string, with only ASCII characters replaced with other ASCII characters. Since UTF-8 is self-synchronizing, `escaped` remains valid UTF-8.
-                            let escaped = unsafe { String::from_utf8_unchecked(escaped) };
+                            let escaped = escape_html(&s.value());
                             quote!(__rocket_util_buf.push_str(#escaped);)
                         }
                         _ => quote!(__rocket_util_buf.push_str(&#rocket_util::ToHtml::to_html(&(#expr)).0);),
@@ -362,19 +368,7 @@ impl Entry {
                     Content::Empty => quote!(),
                     Content::Flat(expr) => match expr {
                         Expr::Lit(ExprLit { attrs, lit: Lit::Str(s) }) if attrs.is_empty() => {
-                            // special-case string literals to ensure HTML escaping is done at compile time
-                            let mut escaped = Vec::with_capacity(s.value().len());
-                            for b in s.value().bytes() {
-                                match b {
-                                    b'"' => escaped.extend_from_slice(b"&quot;"),
-                                    b'&' => escaped.extend_from_slice(b"&amp;"),
-                                    b'<' => escaped.extend_from_slice(b"&lt;"),
-                                    b'>' => escaped.extend_from_slice(b"&gt;"),
-                                    _ => escaped.push(b),
-                                }
-                            }
-                            //SAFETY: `escaped` is derived from a valid UTF-8 string, with only ASCII characters replaced with other ASCII characters. Since UTF-8 is self-synchronizing, `escaped` remains valid UTF-8.
-                            let escaped = unsafe { String::from_utf8_unchecked(escaped) };
+                            let escaped = escape_html(&s.value());
                             quote!(__rocket_util_buf.push_str(#escaped);)
                         }
                         _ => quote!(__rocket_util_buf.push_str(&#rocket_util::ToHtml::to_html(&(#expr)).0);),
@@ -384,6 +378,63 @@ impl Entry {
                         quote! {{ #(#body)* }}
                     }
                 }
+            }
+        }
+    }
+
+    fn to_string(&self) -> Option<String> {
+        match self {
+            Self::For { .. } | Self::If { .. } | Self::Let { .. } | Self::Match { .. } | Self::Unimplemented | Self::Unreachable | Self::While { .. } => None,
+            Self::Simple { tag: Some(tag), attrs, content } => {
+                let is_void = matches!(
+                    &*tag.unraw().to_string().to_ascii_lowercase(),
+                    "area" | "base" | "br" | "col" | "embed" | "hr" | "img" | "input" | "link" | "meta" | "param" | "source" | "track" | "wbr"
+                );
+                if is_void && !matches!(content, Content::Empty) { return None }
+                let mut buf = format!("<{}", tag.unraw());
+                for Attr { name, value } in attrs {
+                    buf.push_str(&match value {
+                        AttrValue::Empty => format!(" {}", name.unraw().to_string().replace('_', "-")),
+                        AttrValue::Simple(value) => match value {
+                            Expr::Lit(ExprLit { attrs, lit: Lit::Str(s) }) if attrs.is_empty() =>
+                                format!(" {}=\"{}\"", name.unraw().to_string().replace('_', "-"), escape_html(&s.value())),
+                            _ => return None,
+                        }
+                        AttrValue::Optional(_) => return None,
+                    });
+                }
+                buf.push('>');
+                match content {
+                    Content::Empty => {}
+                    Content::Flat(expr) => match expr {
+                        Expr::Lit(ExprLit { attrs, lit: Lit::Str(s) }) if attrs.is_empty() => buf.push_str(&escape_html(&s.value())),
+                        _ => return None,
+                    },
+                    Content::Nested(Input(entries)) => for entry in entries {
+                        buf.push_str(&entry.to_string()?);
+                    },
+                }
+                if !is_void {
+                    buf.push_str(&format!("</{}>", tag.unraw()));
+                }
+                Some(buf)
+            }
+            Self::Simple { tag: None, attrs, content } => {
+                assert!(attrs.is_empty());
+                Some(match content {
+                    Content::Empty => String::default(),
+                    Content::Flat(expr) => match expr {
+                        Expr::Lit(ExprLit { attrs, lit: Lit::Str(s) }) if attrs.is_empty() => escape_html(&s.value()),
+                        _ => return None,
+                    },
+                    Content::Nested(Input(entries)) => {
+                        let mut buf = String::default();
+                        for entry in entries {
+                            buf.push_str(&entry.to_string()?);
+                        }
+                        buf
+                    }
+                })
             }
         }
     }

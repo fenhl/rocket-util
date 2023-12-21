@@ -326,14 +326,20 @@ impl Entry {
                         let attr = format!(" {}", name.unraw().to_string().replace('_', "-"));
                         quote!(__rocket_util_buf.push_str(#attr);)
                     }
-                    AttrValue::Simple(value) => {
-                        let attr = format!(" {}=\"", name.unraw().to_string().replace('_', "-"));
-                        quote! {
-                            __rocket_util_buf.push_str(#attr);
-                            __rocket_util_buf.push_str(&#rocket_util::ToHtml::to_html(&(#value)).0);
-                            __rocket_util_buf.push('"');
+                    AttrValue::Simple(value) => match value {
+                        Expr::Lit(ExprLit { attrs, lit: Lit::Str(s) }) if attrs.is_empty() => {
+                            let attr = format!(" {}=\"{}\"", name.unraw().to_string().replace('_', "-"), escape_html(&s.value()));
+                            quote!(__rocket_util_buf.push_str(#attr);)
                         }
-                    }
+                        _ => {
+                            let attr = format!(" {}=\"", name.unraw().to_string().replace('_', "-"));
+                            quote! {
+                                __rocket_util_buf.push_str(#attr);
+                                __rocket_util_buf.push_str(&#rocket_util::ToHtml::to_html(&(#value)).0);
+                                __rocket_util_buf.push('"');
+                            }
+                        }
+                    },
                     AttrValue::Optional(value) => {
                         let attr_no_value = format!(" {}", name.unraw().to_string().replace('_', "-"));
                         let attr_with_value = format!(" {}=\"", name.unraw().to_string().replace('_', "-"));
@@ -399,7 +405,7 @@ impl Entry {
                             Expr::Lit(ExprLit { attrs, lit: Lit::Str(s) }) if attrs.is_empty() =>
                                 format!(" {}=\"{}\"", name.unraw().to_string().replace('_', "-"), escape_html(&s.value())),
                             _ => return None,
-                        }
+                        },
                         AttrValue::Optional(_) => return None,
                     });
                 }

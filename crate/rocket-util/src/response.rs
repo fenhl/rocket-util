@@ -8,7 +8,7 @@ use rocket::{
 #[cfg(feature = "image")] use {
     std::io::Cursor,
     image::{
-        ImageOutputFormat,
+        ImageFormat,
         RgbaImage,
     },
 };
@@ -46,7 +46,7 @@ impl WrappedResponder for ICalendar<'_> {
 impl WrappedResponder for RgbaImage {
     fn respond_to(self, request: &Request<'_>) -> rocket::response::Result<'static> {
         let mut buf = Cursor::new(Vec::default());
-        match self.write_to(&mut buf, ImageOutputFormat::Png) {
+        match self.write_to(&mut buf, ImageFormat::Png) {
             Ok(()) => (ContentType::PNG, buf.into_inner()).respond_to(request),
             Err(e) => Error(e).respond_to(request),
         }

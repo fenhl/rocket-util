@@ -102,33 +102,33 @@ impl<'r, E: std::error::Error> Responder<'r, 'static> for Error<E> {
 ///
 /// Wrapper type used here to allow decoding from URI query
 #[derive(Clone)]
-pub struct Origin<'a>(pub rocket::http::uri::Origin<'a>);
+pub struct Origin<'a>(pub uri::Origin<'a>);
 
 #[rocket::async_trait]
 impl<'a> FromRequest<'a> for Origin<'a> {
     type Error = Never;
 
     async fn from_request(req: &'a Request<'_>) -> request::Outcome<Self, Never> {
-        <&rocket::http::uri::Origin<'_>>::from_request(req).await.map(|origin| Self(origin.clone()))
+        <&uri::Origin<'_>>::from_request(req).await.map(|origin| Self(origin.clone()))
     }
 }
 
 impl<'a> FromFormField<'a> for Origin<'a> {
     fn from_value(field: form::ValueField<'a>) -> form::Result<'a, Self> {
-        Ok(Self(rocket::http::uri::Origin::try_from(field.value).map_err(|e| form::Error::validation(e.to_string()))?))
+        Ok(Self(uri::Origin::try_from(field.value).map_err(|e| form::Error::validation(e.to_string()))?))
     }
 }
 
 impl<'a> UriDisplay<Query> for Origin<'a> {
-    fn fmt(&self, f: &mut rocket::http::uri::fmt::Formatter<'_, Query>) -> fmt::Result {
+    fn fmt(&self, f: &mut uri::fmt::Formatter<'_, Query>) -> fmt::Result {
         UriDisplay::fmt(&self.0.to_string(), f)
     }
 }
 
-impl<'a> FromUriParam<Query, rocket::http::uri::Origin<'a>> for Origin<'a> {
+impl<'a> FromUriParam<Query, uri::Origin<'a>> for Origin<'a> {
     type Target = Self;
 
-    fn from_uri_param(param: rocket::http::uri::Origin<'a>) -> Self {
+    fn from_uri_param(param: uri::Origin<'a>) -> Self {
         Self(param)
     }
 }

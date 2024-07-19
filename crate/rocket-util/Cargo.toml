@@ -7,38 +7,12 @@ edition.workspace = true
 reqwest = ["dep:reqwest", "futures", "tokio-util"]
 
 [dependencies]
+futures = { version = "0.3", optional = true }
+ics = { version = "0.5", default-features = false, optional = true }
+image = { version = "0.25", default-features = false, features = ["png"], optional = true }
+reqwest = { version = "0.12", default-features = false, features = ["stream"], optional = true }
 rocket = "0.5"
+rocket-util-derive = { path = "../rocket-util-derive" }
+rocket_csrf = { git = "https://github.com/fenhl/rocket_csrf", branch = "rocket05", optional = true }
 thiserror = "1"
-
-[dependencies.futures]
-version = "0.3"
-optional = true
-
-[dependencies.ics]
-version = "0.5"
-default-features = false
-optional = true
-
-[dependencies.image]
-version = "0.25"
-default-features = false
-features = ["png"]
-optional = true
-
-[dependencies.reqwest]
-version = "0.12"
-default-features = false
-features = ["stream"]
-optional = true
-
-[dependencies.rocket_csrf]
-git = "https://github.com/fenhl/rocket_csrf"
-branch = "rocket05"
-optional = true
-
-[dependencies.rocket-util-derive]
-path = "../rocket-util-derive"
-
-[dependencies.tokio-util]
-version = "0.7"
-optional = true
+tokio-util = { version = "0.7", optional = true }

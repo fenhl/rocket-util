@@ -11,8 +11,8 @@ futures = { version = "0.3", optional = true }
 ics = { version = "0.5", default-features = false, optional = true }
 image = { version = "0.25", default-features = false, features = ["png"], optional = true }
 reqwest = { version = "0.12", default-features = false, features = ["stream"], optional = true }
-rocket = "0.5"
+rocket = { git = "https://github.com/fenhl/Rocket", branch = "forms" }
 rocket-util-derive = { path = "../rocket-util-derive" }
-rocket_csrf = { git = "https://github.com/fenhl/rocket_csrf", branch = "rocket05", optional = true }
+rocket_csrf = { git = "https://github.com/fenhl/rocket_csrf", branch = "forms", optional = true }
 thiserror = "1"
 tokio-util = { version = "0.7", optional = true }

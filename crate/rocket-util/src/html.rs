@@ -29,6 +29,7 @@ use {
     std::{
         borrow::Cow,
         convert::Infallible as Never,
+        fmt::Write as _,
     },
     rocket::response::content::RawHtml,
 };
@@ -39,11 +40,19 @@ use {
 
 pub trait ToHtml {
     fn to_html(&self) -> RawHtml<String>;
+
+    fn push_html(&self, buf: &mut RawHtml<String>) {
+        buf.0.push_str(&self.to_html().0);
+    }
 }
 
 impl<T: ToString> ToHtml for RawHtml<T> {
     fn to_html(&self) -> RawHtml<String> {
         RawHtml(self.0.to_string())
+    }
+
+    fn push_html(&self, buf: &mut RawHtml<String>) {
+        buf.0.push_str(&self.0.to_string());
     }
 }
 
@@ -62,17 +71,42 @@ impl<'a> ToHtml for &'a str {
         //SAFETY: `escaped` is derived from a valid UTF-8 string, with only ASCII characters replaced with other ASCII characters. Since UTF-8 is self-synchronizing, `escaped` remains valid UTF-8.
         RawHtml(unsafe { String::from_utf8_unchecked(escaped) })
     }
+
+    fn push_html(&self, buf: &mut RawHtml<String>) {
+        //SAFETY: `escaped` is derived from a valid UTF-8 string, with only ASCII characters replaced with other ASCII characters. Since UTF-8 is self-synchronizing, `escaped` remains valid UTF-8.
+        unsafe {
+            let escaped = buf.0.as_mut_vec();
+            escaped.reserve(self.len());
+            for b in self.bytes() {
+                match b {
+                    b'"' => escaped.extend_from_slice(b"&quot;"),
+                    b'&' => escaped.extend_from_slice(b"&amp;"),
+                    b'<' => escaped.extend_from_slice(b"&lt;"),
+                    b'>' => escaped.extend_from_slice(b"&gt;"),
+                    _ => escaped.push(b),
+                }
+            }
+        }
+    }
 }
 
 impl ToHtml for String {
     fn to_html(&self) -> RawHtml<String> {
         (&**self).to_html()
     }
+
+    fn push_html(&self, buf: &mut RawHtml<String>) {
+        (&**self).push_html(buf);
+    }
 }
 
 impl<'a, T: ToHtml> ToHtml for &'a T {
     fn to_html(&self) -> RawHtml<String> {
         (*self).to_html()
+    }
+
+    fn push_html(&self, buf: &mut RawHtml<String>) {
+        (*self).push_html(buf);
     }
 }
 
@@ -82,6 +116,13 @@ where &'a T: ToHtml, T::Owned: ToHtml {
         match self {
             Self::Borrowed(borrowed) => borrowed.to_html(),
             Self::Owned(owned) => owned.to_html(),
+        }
+    }
+
+    fn push_html(&self, buf: &mut RawHtml<String>) {
+        match self {
+            Self::Borrowed(borrowed) => borrowed.push_html(buf),
+            Self::Owned(owned) => owned.push_html(buf),
         }
     }
 }
@@ -94,10 +135,20 @@ impl<T: ToHtml> ToHtml for Option<T> {
             RawHtml(Default::default())
         }
     }
+
+    fn push_html(&self, buf: &mut RawHtml<String>) {
+        if let Some(value) = self {
+            value.push_html(buf);
+        }
+    }
 }
 
 impl ToHtml for Never {
     fn to_html(&self) -> RawHtml<String> {
+        match *self {}
+    }
+
+    fn push_html(&self, _: &mut RawHtml<String>) {
         match *self {}
     }
 }
@@ -108,6 +159,10 @@ macro_rules! impl_to_html_using_to_string {
             impl ToHtml for $T {
                 fn to_html(&self) -> RawHtml<String> {
                     self.to_string().to_html()
+                }
+
+                fn push_html(&self, buf: &mut RawHtml<String>) {
+                    write!(&mut buf.0, "{self}").unwrap();
                 }
             }
         )*
@@ -123,6 +178,8 @@ impl ToHtml for CsrfToken {
             input(type = "hidden", name = "csrf", value = self.authenticity_token());
         }
     }
+
+    //TODO specialize push_html for better perf?
 }
 
 /// Members of this trait can be used as the `value` in a `tag(attr? = value)` expression inside the [`html`](crate::html!) macro.
@@ -156,5 +213,9 @@ pub struct Doctype;
 impl ToHtml for Doctype {
     fn to_html(&self) -> RawHtml<String> {
         RawHtml(format!("<!DOCTYPE html>"))
+    }
+
+    fn push_html(&self, buf: &mut RawHtml<String>) {
+        buf.0.push_str("<!DOCTYPE html>");
     }
 }

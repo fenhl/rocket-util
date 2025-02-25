@@ -266,7 +266,7 @@ impl Parse for Entry {
 impl Entry {
     fn to_tokens(self, internal: bool) -> TokenStream {
         if let Some(html) = self.to_string() {
-            return quote!(__rocket_util_buf.push_str(#html);)
+            return quote!(__rocket_util_buf.0.push_str(#html);)
         }
         let rocket_util = if internal { quote!(crate) } else { quote!(::rocket_util) };
         match self {
@@ -311,9 +311,9 @@ impl Entry {
                     Content::Flat(expr) => match expr {
                         Expr::Lit(ExprLit { attrs, lit: Lit::Str(s) }) if attrs.is_empty() => {
                             let escaped = escape_html(&s.value());
-                            quote!(__rocket_util_buf.push_str(#escaped);)
+                            quote!(__rocket_util_buf.0.push_str(#escaped);)
                         }
-                        _ => quote!(__rocket_util_buf.push_str(&#rocket_util::ToHtml::to_html(&(#expr)).0);),
+                        _ => quote!(#rocket_util::ToHtml::push_html(&(#expr), &mut __rocket_util_buf);),
                     },
                     Content::Nested(Input(entries)) => {
                         let body = entries.into_iter().map(|entry| entry.to_tokens(internal));
@@ -324,19 +324,19 @@ impl Entry {
                 let attrs = attrs.into_iter().map(|Attr { name, value }| match value {
                     AttrValue::Empty => {
                         let attr = format!(" {}", name.unraw().to_string().replace('_', "-"));
-                        quote!(__rocket_util_buf.push_str(#attr);)
+                        quote!(__rocket_util_buf.0.push_str(#attr);)
                     }
                     AttrValue::Simple(value) => match value {
                         Expr::Lit(ExprLit { attrs, lit: Lit::Str(s) }) if attrs.is_empty() => {
                             let attr = format!(" {}=\"{}\"", name.unraw().to_string().replace('_', "-"), escape_html(&s.value()));
-                            quote!(__rocket_util_buf.push_str(#attr);)
+                            quote!(__rocket_util_buf.0.push_str(#attr);)
                         }
                         _ => {
                             let attr = format!(" {}=\"", name.unraw().to_string().replace('_', "-"));
                             quote! {
-                                __rocket_util_buf.push_str(#attr);
-                                __rocket_util_buf.push_str(&#rocket_util::ToHtml::to_html(&(#value)).0);
-                                __rocket_util_buf.push('"');
+                                __rocket_util_buf.0.push_str(#attr);
+                                #rocket_util::ToHtml::push_html(&(#value), &mut __rocket_util_buf);
+                                __rocket_util_buf.0.push('"');
                             }
                         }
                     },
@@ -346,11 +346,11 @@ impl Entry {
                         quote! {
                             match #rocket_util::OptionalAttr::attr_value(#value) {
                                 ::core::option::Option::None => {}
-                                ::core::option::Option::Some(::core::option::Option::None) => __rocket_util_buf.push_str(#attr_no_value),
+                                ::core::option::Option::Some(::core::option::Option::None) => __rocket_util_buf.0.push_str(#attr_no_value),
                                 ::core::option::Option::Some(::core::option::Option::Some(__rocket_util_value)) => {
-                                    __rocket_util_buf.push_str(#attr_with_value);
-                                    __rocket_util_buf.push_str(&#rocket_util::ToHtml::to_html(&__rocket_util_value).0);
-                                    __rocket_util_buf.push('"');
+                                    __rocket_util_buf.0.push_str(#attr_with_value);
+                                    #rocket_util::ToHtml::push_html(&__rocket_util_value, &mut __rocket_util_buf);
+                                    __rocket_util_buf.0.push('"');
                                 }
                             }
                         }
@@ -358,12 +358,12 @@ impl Entry {
                 });
                 let close_tag = (!is_void).then(|| {
                     let close_tag = format!("</{}>", tag.unraw());
-                    quote!(__rocket_util_buf.push_str(#close_tag);)
+                    quote!(__rocket_util_buf.0.push_str(#close_tag);)
                 });
                 quote! {
-                    __rocket_util_buf.push_str(#open_tag);
+                    __rocket_util_buf.0.push_str(#open_tag);
                     #(#attrs)*
-                    __rocket_util_buf.push('>');
+                    __rocket_util_buf.0.push('>');
                     #content
                     #close_tag
                 }
@@ -375,9 +375,9 @@ impl Entry {
                     Content::Flat(expr) => match expr {
                         Expr::Lit(ExprLit { attrs, lit: Lit::Str(s) }) if attrs.is_empty() => {
                             let escaped = escape_html(&s.value());
-                            quote!(__rocket_util_buf.push_str(#escaped);)
+                            quote!(__rocket_util_buf.0.push_str(#escaped);)
                         }
-                        _ => quote!(__rocket_util_buf.push_str(&#rocket_util::ToHtml::to_html(&(#expr)).0);),
+                        _ => quote!(#rocket_util::ToHtml::push_html(&(#expr), &mut __rocket_util_buf);),
                     },
                     Content::Nested(Input(entries)) => {
                         let body = entries.into_iter().map(|entry| entry.to_tokens(internal));
@@ -463,9 +463,9 @@ impl Input {
         let rocket_util = if internal { quote!(crate) } else { quote!(::rocket_util) };
         let entries = self.0.into_iter().map(|entry| entry.to_tokens(internal));
         quote! {{
-            let mut __rocket_util_buf = ::std::string::String::new();
+            let mut __rocket_util_buf = #rocket_util::rocket::response::content::RawHtml(::std::string::String::new());
             #(#entries)*
-            #rocket_util::rocket::response::content::RawHtml(__rocket_util_buf)
+            __rocket_util_buf
         }}
     }
 }

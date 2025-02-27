@@ -1,8 +1,8 @@
 [workspace]
 members = ["crate/*"]
 default-members = ["crate/rocket-util"]
-resolver = "2"
+resolver = "3"
 
 [workspace.package]
 version = "0.2.15"
-edition = "2021"
+edition = "2024"

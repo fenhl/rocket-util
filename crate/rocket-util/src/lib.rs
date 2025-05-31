@@ -91,7 +91,7 @@ pub struct Error<E: std::error::Error>(#[from] pub E);
 
 impl<'r, E: std::error::Error> Responder<'r, 'static> for Error<E> {
     fn respond_to(self, request: &'r Request<'_>) -> rocket::response::Result<'static> {
-        eprintln!("responded with {} to request to {}", Status::InternalServerError, request.uri());
+        eprintln!("responded with {} to {} request to {}", Status::InternalServerError, request.method(), request.uri());
         eprintln!("display: {self}");
         eprintln!("debug: {self:?}");
         Err(Status::InternalServerError)

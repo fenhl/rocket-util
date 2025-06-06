@@ -153,6 +153,12 @@ impl ToHtml for Never {
     }
 }
 
+impl ToHtml for rocket::form::Error<'_> {
+    fn to_html(&self) -> RawHtml<String> {
+        self.to_string().to_html()
+    }
+}
+
 macro_rules! impl_to_html_using_to_string {
     ($($T:ty),* $(,)?) => {
         $(

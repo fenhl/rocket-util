@@ -38,6 +38,7 @@ use {
             Parse,
             ParseStream,
         },
+        spanned::Spanned as _,
     },
 };
 
@@ -313,7 +314,7 @@ impl Entry {
                             let escaped = escape_html(&s.value());
                             quote!(__rocket_util_buf.0.push_str(#escaped);)
                         }
-                        _ => quote!(#rocket_util::ToHtml::push_html(&(#expr), &mut __rocket_util_buf);),
+                        _ => quote_spanned!(expr.span()=> #rocket_util::ToHtml::push_html(&(#expr), &mut __rocket_util_buf);),
                     },
                     Content::Nested(Input(entries)) => {
                         let body = entries.into_iter().map(|entry| entry.to_tokens(internal));
@@ -333,7 +334,7 @@ impl Entry {
                         }
                         _ => {
                             let attr = format!(" {}=\"", name.unraw().to_string().replace('_', "-"));
-                            quote! {
+                            quote_spanned! {value.span()=>
                                 __rocket_util_buf.0.push_str(#attr);
                                 #rocket_util::ToHtml::push_html(&(#value), &mut __rocket_util_buf);
                                 __rocket_util_buf.0.push('"');
@@ -343,7 +344,7 @@ impl Entry {
                     AttrValue::Optional(value) => {
                         let attr_no_value = format!(" {}", name.unraw().to_string().replace('_', "-"));
                         let attr_with_value = format!(" {}=\"", name.unraw().to_string().replace('_', "-"));
-                        quote! {
+                        quote_spanned! {value.span()=>
                             match #rocket_util::OptionalAttr::attr_value(#value) {
                                 ::core::option::Option::None => {}
                                 ::core::option::Option::Some(::core::option::Option::None) => __rocket_util_buf.0.push_str(#attr_no_value),
@@ -377,7 +378,7 @@ impl Entry {
                             let escaped = escape_html(&s.value());
                             quote!(__rocket_util_buf.0.push_str(#escaped);)
                         }
-                        _ => quote!(#rocket_util::ToHtml::push_html(&(#expr), &mut __rocket_util_buf);),
+                        _ => quote_spanned!(expr.span()=> #rocket_util::ToHtml::push_html(&(#expr), &mut __rocket_util_buf);),
                     },
                     Content::Nested(Input(entries)) => {
                         let body = entries.into_iter().map(|entry| entry.to_tokens(internal));

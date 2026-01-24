@@ -153,6 +153,28 @@ impl ToHtml for Never {
     }
 }
 
+impl ToHtml for char {
+    fn to_html(&self) -> RawHtml<String> {
+        match self {
+            '"' => RawHtml(format!("&quot;")),
+            '&' => RawHtml(format!("&amp;")),
+            '<' => RawHtml(format!("&lt;")),
+            '>' => RawHtml(format!("&gt;")),
+            _ => RawHtml(self.to_string()),
+        }
+    }
+
+    fn push_html(&self, buf: &mut RawHtml<String>) {
+        match self {
+            '"' => buf.0.push_str("&quot;"),
+            '&' => buf.0.push_str("&amp;"),
+            '<' => buf.0.push_str("&lt;"),
+            '>' => buf.0.push_str("&gt;"),
+            _ => buf.0.push(*self),
+        }
+    }
+}
+
 impl ToHtml for rocket::form::Error<'_> {
     fn to_html(&self) -> RawHtml<String> {
         match self.kind {
@@ -162,12 +184,22 @@ impl ToHtml for rocket::form::Error<'_> {
     }
 }
 
-macro_rules! impl_to_html_using_to_string {
+impl ToHtml for url::Url {
+    fn to_html(&self) -> RawHtml<String> {
+        RawHtml(self.to_string())
+    }
+
+    fn push_html(&self, buf: &mut RawHtml<String>) {
+        buf.0.push_str(self.as_str());
+    }
+}
+
+macro_rules! impl_to_html_unescaped {
     ($($T:ty),* $(,)?) => {
         $(
             impl ToHtml for $T {
                 fn to_html(&self) -> RawHtml<String> {
-                    self.to_string().to_html()
+                    RawHtml(self.to_string())
                 }
 
                 fn push_html(&self, buf: &mut RawHtml<String>) {
@@ -178,7 +210,7 @@ macro_rules! impl_to_html_using_to_string {
     };
 }
 
-impl_to_html_using_to_string!(
+impl_to_html_unescaped!(
     i8,
     u8,
     i16,
@@ -193,7 +225,6 @@ impl_to_html_using_to_string!(
     usize,
     f32,
     f64,
-    char,
     crate::Origin<'_>,
     rocket::http::uri::Asterisk,
     rocket::http::uri::Origin<'_>,

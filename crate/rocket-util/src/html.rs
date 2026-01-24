@@ -153,6 +153,28 @@ impl ToHtml for Never {
     }
 }
 
+impl ToHtml for char {
+    fn to_html(&self) -> RawHtml<String> {
+        match self {
+            '"' => RawHtml(format!("&quot;")),
+            '&' => RawHtml(format!("&amp;")),
+            '<' => RawHtml(format!("&lt;")),
+            '>' => RawHtml(format!("&gt;")),
+            _ => RawHtml(self.to_string()),
+        }
+    }
+
+    fn push_html(&self, buf: &mut RawHtml<String>) {
+        match self {
+            '"' => buf.0.push_str("&quot;"),
+            '&' => buf.0.push_str("&amp;"),
+            '<' => buf.0.push_str("&lt;"),
+            '>' => buf.0.push_str("&gt;"),
+            _ => buf.0.push(*self),
+        }
+    }
+}
+
 impl ToHtml for rocket::form::Error<'_> {
     fn to_html(&self) -> RawHtml<String> {
         self.to_string().to_html()
@@ -185,22 +207,6 @@ macro_rules! impl_to_html_unescaped {
     };
 }
 
-macro_rules! impl_to_html_escaped {
-    ($($T:ty),* $(,)?) => {
-        $(
-            impl ToHtml for $T {
-                fn to_html(&self) -> RawHtml<String> {
-                    self.to_string().to_html()
-                }
-
-                fn push_html(&self, buf: &mut RawHtml<String>) {
-                    self.to_string().push_html(buf)
-                }
-            }
-        )*
-    };
-}
-
 impl_to_html_unescaped!(
     i8,
     u8,
@@ -222,10 +228,6 @@ impl_to_html_unescaped!(
     rocket::http::uri::Authority<'_>,
     rocket::http::uri::Absolute<'_>,
     rocket::http::uri::Reference<'_>,
-);
-
-impl_to_html_escaped!(
-    char,
 );
 
 #[cfg(feature = "rocket_csrf")]

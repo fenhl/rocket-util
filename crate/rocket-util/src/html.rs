@@ -159,12 +159,22 @@ impl ToHtml for rocket::form::Error<'_> {
     }
 }
 
-macro_rules! impl_to_html_using_to_string {
+impl ToHtml for url::Url {
+    fn to_html(&self) -> RawHtml<String> {
+        RawHtml(self.to_string())
+    }
+
+    fn push_html(&self, buf: &mut RawHtml<String>) {
+        buf.0.push_str(self.as_str());
+    }
+}
+
+macro_rules! impl_to_html_unescaped {
     ($($T:ty),* $(,)?) => {
         $(
             impl ToHtml for $T {
                 fn to_html(&self) -> RawHtml<String> {
-                    self.to_string().to_html()
+                    RawHtml(self.to_string())
                 }
 
                 fn push_html(&self, buf: &mut RawHtml<String>) {
@@ -175,7 +185,23 @@ macro_rules! impl_to_html_using_to_string {
     };
 }
 
-impl_to_html_using_to_string!(
+macro_rules! impl_to_html_escaped {
+    ($($T:ty),* $(,)?) => {
+        $(
+            impl ToHtml for $T {
+                fn to_html(&self) -> RawHtml<String> {
+                    self.to_string().to_html()
+                }
+
+                fn push_html(&self, buf: &mut RawHtml<String>) {
+                    self.to_string().push_html(buf)
+                }
+            }
+        )*
+    };
+}
+
+impl_to_html_unescaped!(
     i8,
     u8,
     i16,
@@ -190,13 +216,16 @@ impl_to_html_using_to_string!(
     usize,
     f32,
     f64,
-    char,
     crate::Origin<'_>,
     rocket::http::uri::Asterisk,
     rocket::http::uri::Origin<'_>,
     rocket::http::uri::Authority<'_>,
     rocket::http::uri::Absolute<'_>,
     rocket::http::uri::Reference<'_>,
+);
+
+impl_to_html_escaped!(
+    char,
 );
 
 #[cfg(feature = "rocket_csrf")]

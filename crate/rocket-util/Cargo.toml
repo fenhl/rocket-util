@@ -16,3 +16,4 @@ rocket-util-derive = { path = "../rocket-util-derive" }
 rocket_csrf = { git = "https://github.com/fenhl/rocket_csrf", branch = "rocket05", optional = true }
 thiserror = "2"
 tokio-util = { version = "0.7", optional = true }
+url = "2.5.8"

@@ -310,6 +310,10 @@ impl Entry {
                 let content = match content {
                     Content::Empty => quote!(),
                     Content::Flat(expr) => match expr {
+                        Expr::Lit(ExprLit { attrs, lit: Lit::Char(c) }) if attrs.is_empty() => {
+                            let escaped = escape_html(&c.value().to_string());
+                            quote!(__rocket_util_buf.0.push_str(#escaped);)
+                        }
                         Expr::Lit(ExprLit { attrs, lit: Lit::Str(s) }) if attrs.is_empty() => {
                             let escaped = escape_html(&s.value());
                             quote!(__rocket_util_buf.0.push_str(#escaped);)
@@ -328,6 +332,10 @@ impl Entry {
                         quote!(__rocket_util_buf.0.push_str(#attr);)
                     }
                     AttrValue::Simple(value) => match value {
+                        Expr::Lit(ExprLit { attrs, lit: Lit::Char(c) }) if attrs.is_empty() => {
+                            let attr = format!(" {}=\"{}\"", name.unraw().to_string().replace('_', "-"), escape_html(&c.value().to_string()));
+                            quote!(__rocket_util_buf.0.push_str(#attr);)
+                        }
                         Expr::Lit(ExprLit { attrs, lit: Lit::Str(s) }) if attrs.is_empty() => {
                             let attr = format!(" {}=\"{}\"", name.unraw().to_string().replace('_', "-"), escape_html(&s.value()));
                             quote!(__rocket_util_buf.0.push_str(#attr);)
@@ -374,6 +382,10 @@ impl Entry {
                 match content {
                     Content::Empty => quote!(),
                     Content::Flat(expr) => match expr {
+                        Expr::Lit(ExprLit { attrs, lit: Lit::Char(c) }) if attrs.is_empty() => {
+                            let escaped = escape_html(&c.value().to_string());
+                            quote!(__rocket_util_buf.0.push_str(#escaped);)
+                        }
                         Expr::Lit(ExprLit { attrs, lit: Lit::Str(s) }) if attrs.is_empty() => {
                             let escaped = escape_html(&s.value());
                             quote!(__rocket_util_buf.0.push_str(#escaped);)
@@ -403,6 +415,8 @@ impl Entry {
                     buf.push_str(&match value {
                         AttrValue::Empty => format!(" {}", name.unraw().to_string().replace('_', "-")),
                         AttrValue::Simple(value) => match value {
+                            Expr::Lit(ExprLit { attrs, lit: Lit::Char(c) }) if attrs.is_empty() =>
+                                format!(" {}=\"{}\"", name.unraw().to_string().replace('_', "-"), escape_html(&c.value().to_string())),
                             Expr::Lit(ExprLit { attrs, lit: Lit::Str(s) }) if attrs.is_empty() =>
                                 format!(" {}=\"{}\"", name.unraw().to_string().replace('_', "-"), escape_html(&s.value())),
                             _ => return None,
@@ -414,6 +428,7 @@ impl Entry {
                 match content {
                     Content::Empty => {}
                     Content::Flat(expr) => match expr {
+                        Expr::Lit(ExprLit { attrs, lit: Lit::Char(c) }) if attrs.is_empty() => buf.push_str(&escape_html(&c.value().to_string())),
                         Expr::Lit(ExprLit { attrs, lit: Lit::Str(s) }) if attrs.is_empty() => buf.push_str(&escape_html(&s.value())),
                         _ => return None,
                     },
@@ -431,6 +446,7 @@ impl Entry {
                 Some(match content {
                     Content::Empty => String::default(),
                     Content::Flat(expr) => match expr {
+                        Expr::Lit(ExprLit { attrs, lit: Lit::Char(c) }) if attrs.is_empty() => escape_html(&c.value().to_string()),
                         Expr::Lit(ExprLit { attrs, lit: Lit::Str(s) }) if attrs.is_empty() => escape_html(&s.value()),
                         _ => return None,
                     },

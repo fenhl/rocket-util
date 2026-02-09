@@ -2,8 +2,8 @@ use rocket::{
     request::Request,
     response::Responder,
 };
-#[cfg(any(feature = "ics", feature = "image", feature = "reqwest"))] use crate::Error;
-#[cfg(any(feature = "ics", feature = "image"))] use rocket::http::ContentType;
+#[cfg(any(feature = "ics", feature = "image", feature = "reqwest", feature = "tiny-skia"))] use crate::Error;
+#[cfg(any(feature = "ics", feature = "image", feature = "tiny-skia"))] use rocket::http::ContentType;
 #[cfg(feature = "ics")] use ics::ICalendar;
 #[cfg(feature = "image")] use {
     std::io::Cursor,
@@ -76,5 +76,15 @@ impl WrappedResponder for reqwest::Response {
         builder
             .streamed_body(StreamReader::new(self.bytes_stream().map_err(io_error_from_reqwest)))
             .ok()
+    }
+}
+
+#[cfg(feature = "tiny-skia")]
+impl WrappedResponder for tiny_skia::Pixmap {
+    fn respond_to(self, request: &Request<'_>) -> rocket::response::Result<'static> {
+        match self.encode_png() {
+            Ok(buf) => (ContentType::PNG, buf).respond_to(request),
+            Err(e) => Error(e).respond_to(request),
+        }
     }
 }

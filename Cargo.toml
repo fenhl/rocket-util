@@ -4,5 +4,5 @@ default-members = ["crate/rocket-util"]
 resolver = "3"
 
 [workspace.package]
-version = "0.2.15"
+version = "0.2.16"
 edition = "2024"

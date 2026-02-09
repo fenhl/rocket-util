@@ -15,5 +15,6 @@ rocket = { git = "https://github.com/fenhl/Rocket", branch = "forms" }
 rocket-util-derive = { path = "../rocket-util-derive" }
 rocket_csrf = { git = "https://github.com/fenhl/rocket_csrf", branch = "forms", optional = true }
 thiserror = "2"
+tiny-skia = { version = "0.12", optional = true }
 tokio-util = { version = "0.7", optional = true }
-url = "2.5.8"
+url = "2"

@@ -30,6 +30,7 @@ use {
         borrow::Cow,
         convert::Infallible as Never,
         fmt::Write as _,
+        num::NonZero,
     },
     rocket::response::content::RawHtml,
 };
@@ -246,6 +247,18 @@ impl_to_html_unescaped!(
     usize,
     f32,
     f64,
+    NonZero<i8>,
+    NonZero<u8>,
+    NonZero<i16>,
+    NonZero<u16>,
+    NonZero<i32>,
+    NonZero<u32>,
+    NonZero<i64>,
+    NonZero<u64>,
+    NonZero<i128>,
+    NonZero<u128>,
+    NonZero<isize>,
+    NonZero<usize>,
     rocket::http::uri::Asterisk,
 );
 

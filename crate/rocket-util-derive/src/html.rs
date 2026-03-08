@@ -140,6 +140,10 @@ impl Parse for MatchArm {
 }
 
 enum Entry {
+    Cfg {
+        predicate: TokenStream,
+        body: Input,
+    },
     For {
         pat: Pat,
         expr: Expr,
@@ -239,6 +243,13 @@ impl Parse for Entry {
             } else if lookahead.peek(Ident) {
                 let ident = input.parse::<Ident>()?;
                 match &*ident.to_string() {
+                    "cfg" => {
+                        let predicate;
+                        parenthesized!(predicate in input);
+                        let content;
+                        braced!(content in input);
+                        Self::Cfg { predicate: predicate.parse()?, body: content.parse()? }
+                    }
                     "unimplemented" => Self::Unimplemented,
                     "unreachable" => Self::Unreachable,
                     _ => return Err(Error::new(ident.span(), "unexpected keyword")),
@@ -271,6 +282,10 @@ impl Entry {
         }
         let rocket_util = if internal { quote!(crate) } else { quote!(::rocket_util) };
         match self {
+            Self::Cfg { predicate, body } => {
+                let body = body.0.into_iter().map(|entry| entry.to_tokens(internal));
+                quote!(#[cfg(#predicate)] { #(#body)* })
+            }
             Self::For { pat, expr, body } => {
                 let body = body.0.into_iter().map(|entry| entry.to_tokens(internal));
                 quote!(for #pat in #expr { #(#body)* })
@@ -403,7 +418,7 @@ impl Entry {
 
     fn to_string(&self) -> Option<String> {
         match self {
-            Self::For { .. } | Self::If { .. } | Self::Let { .. } | Self::Match { .. } | Self::Unimplemented | Self::Unreachable | Self::While { .. } => None,
+            Self::Cfg { .. } | Self::For { .. } | Self::If { .. } | Self::Let { .. } | Self::Match { .. } | Self::Unimplemented | Self::Unreachable | Self::While { .. } => None,
             Self::Simple { tag: Some(tag), attrs, content } => {
                 let is_void = matches!(
                     &*tag.unraw().to_string().to_ascii_lowercase(),

@@ -14,6 +14,7 @@ mod html;
 /// * This macro supports `@let`.
 /// * This macro supports `@match`. Don't use commas to separate the match arms.
 /// * This macro also supports `@unimplemented` and `@unreachable` to work around type inference issues with using `: unimplemented!();` or `: unreachable!();`.
+/// * This macro also supports `@cfg(...) { ... }` for conditional compilation.
 /// * HTML attributes with hyphens should be written with underscores instead, e.g. write `data_foo` instead of `data-foo`.
 #[proc_macro]
 pub fn html(input: TokenStream) -> TokenStream {

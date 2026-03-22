@@ -336,8 +336,35 @@ impl Entry {
                         _ => quote_spanned!(expr.span()=> #rocket_util::ToHtml::push_html(&(#expr), &mut __rocket_util_buf);),
                     },
                     Content::Nested(Input(entries)) => {
-                        let body = entries.into_iter().map(|entry| entry.to_tokens(internal));
-                        quote! {{ #(#body)* }}
+                        // merge adjacent static entries into a single string literal
+                        let mut quote_buf = quote!();
+                        let mut str_buf = String::default();
+                        for entry in entries {
+                            if let Some(html) = entry.to_string() {
+                                str_buf.push_str(&html);
+                            } else {
+                                if !str_buf.is_empty() {
+                                    quote_buf = quote! {
+                                        #quote_buf
+                                        __rocket_util_buf.0.push_str(#str_buf);
+                                    };
+                                    str_buf.clear();
+                                }
+                                let entry = entry.to_tokens(internal);
+                                quote_buf = quote! {
+                                    #quote_buf
+                                    #entry
+                                }
+                            }
+                        }
+                        if !str_buf.is_empty() {
+                            quote_buf = quote! {
+                                #quote_buf
+                                __rocket_util_buf.0.push_str(#str_buf);
+                            };
+                            str_buf.clear();
+                        }
+                        quote_buf
                     }
                 };
                 let open_tag = format!("<{}", tag.unraw());

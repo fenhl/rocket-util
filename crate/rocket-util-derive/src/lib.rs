@@ -38,14 +38,32 @@ pub fn derive_csrf_form(input: TokenStream) -> TokenStream {
     })
 }
 
-#[proc_macro_derive(Error)]
+#[proc_macro_derive(Error, attributes(rocket_util))]
 pub fn derive_error(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let ty = input.ident;
-    TokenStream::from(quote! {
-        impl<'r> ::rocket_util::rocket::response::Responder<'r, 'static> for #ty {
-            fn respond_to(self, request: &'r ::rocket_util::rocket::Request<'_>) -> ::rocket_util::rocket::response::Result<'static> {
-                ::rocket_util::rocket::response::Responder::respond_to(::rocket_util::Error(self), request)
+    TokenStream::from(if input.attrs.iter().any(|attr| attr.path().is_ident("rocket_util") && attr.parse_args::<Ident>().is_ok_and(|ident| ident == "is_network_error")) {
+        quote! {
+            impl<'r> ::rocket_util::rocket::response::Responder<'r, 'static> for #ty {
+                fn respond_to(self, request: &'r ::rocket_util::rocket::Request<'_>) -> ::rocket_util::rocket::response::Result<'static> {
+                    let status = if ::wheel::traits::IsNetworkError::is_network_error(&self) {
+                        ::rocket_util::rocket::http::Status::BadGateway
+                    } else {
+                        ::rocket_util::rocket::http::Status::InternalServerError
+                    };
+                    ::std::eprintln!("responded with {status} to request to {}", request.uri());
+                    ::std::eprintln!("display: {self}");
+                    ::std::eprintln!("debug: {self:?}");
+                    ::core::result::Result::Err(status)
+                }
+            }
+        }
+    } else {
+        quote! {
+            impl<'r> ::rocket_util::rocket::response::Responder<'r, 'static> for #ty {
+                fn respond_to(self, request: &'r ::rocket_util::rocket::Request<'_>) -> ::rocket_util::rocket::response::Result<'static> {
+                    ::rocket_util::rocket::response::Responder::respond_to(::rocket_util::Error(self), request)
+                }
             }
         }
     })

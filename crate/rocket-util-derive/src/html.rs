@@ -522,7 +522,7 @@ impl Input {
         let rocket_util = if internal { quote!(crate) } else { quote!(::rocket_util) };
         let entries = self.0.into_iter().map(|entry| entry.to_tokens(internal));
         quote! {{
-            let mut __rocket_util_buf = #rocket_util::rocket::response::content::RawHtml(::std::string::String::new());
+            let mut __rocket_util_buf = #rocket_util::RawHtml(::std::string::String::new());
             #(#entries)*
             __rocket_util_buf
         }}

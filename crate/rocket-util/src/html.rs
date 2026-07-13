@@ -25,19 +25,21 @@
 // IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
-use {
-    std::{
-        borrow::Cow,
-        convert::Infallible as Never,
-        fmt::Write as _,
-        num::NonZero,
-    },
-    rocket::response::content::RawHtml,
+use std::{
+    borrow::Cow,
+    convert::Infallible as Never,
+    fmt::Write as _,
+    num::NonZero,
 };
+#[cfg(feature = "rocket")] pub use rocket::response::content::RawHtml;
 #[cfg(feature = "rocket_csrf")] use {
     rocket_csrf::CsrfToken,
     rocket_util_derive::html_internal,
 };
+
+#[cfg(not(feature = "rocket"))]
+#[derive(Debug, Clone, PartialEq)]
+pub struct RawHtml<T>(pub T);
 
 pub trait ToHtml {
     fn to_html(&self) -> RawHtml<String>;
@@ -176,6 +178,7 @@ impl ToHtml for char {
     }
 }
 
+#[cfg(feature = "rocket")]
 impl ToHtml for rocket::form::Error<'_> {
     fn to_html(&self) -> RawHtml<String> {
         match self.kind {
@@ -219,6 +222,7 @@ macro_rules! impl_to_html_unescaped {
     };
 }
 
+#[cfg(feature = "rocket")]
 macro_rules! impl_to_html_escaped {
     ($($T:ty),* $(,)?) => {
         $(
@@ -262,9 +266,14 @@ impl_to_html_unescaped!(
     NonZero<u128>,
     NonZero<isize>,
     NonZero<usize>,
+);
+
+#[cfg(feature = "rocket")]
+impl_to_html_unescaped!(
     rocket::http::uri::Asterisk,
 );
 
+#[cfg(feature = "rocket")]
 impl_to_html_escaped!(
     crate::Origin<'_>,
     rocket::http::uri::Origin<'_>,

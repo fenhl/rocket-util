@@ -1,6 +1,6 @@
 #![deny(rust_2018_idioms, unused, unused_crate_dependencies, unused_import_braces, unused_lifetimes, unused_qualifications, warnings)]
 
-use {
+#[cfg(feature = "rocket")] use {
     std::{
         borrow::Cow,
         convert::Infallible as Never,
@@ -45,23 +45,22 @@ pub use {
         Error,
         html,
     },
-    crate::{
-        html::{
-            Doctype,
-            OptionalAttr,
-            ToHtml,
-        },
-        response::{
-            Response,
-            WrappedResponder,
-        },
+    crate::html::{
+        Doctype,
+        OptionalAttr,
+        RawHtml,
+        ToHtml,
     },
 };
-#[doc(hidden)] pub use rocket; // used in proc macro
+#[cfg(feature = "rocket")] pub use crate::response::{
+    Response,
+    WrappedResponder,
+};
+#[cfg(feature = "rocket")] #[doc(hidden)] pub use rocket; // used in proc macro
 #[cfg(feature = "rocket_csrf")] pub use rocket_util_derive::CsrfForm;
 
 mod html;
-mod response;
+#[cfg(feature = "rocket")] mod response;
 
 #[cfg(feature = "rocket_csrf")]
 pub trait CsrfForm {
@@ -73,7 +72,7 @@ pub trait ContextualExt {
     fn verify(&mut self, token: &Option<CsrfToken>);
 }
 
-#[cfg(feature = "rocket_csrf")]
+#[cfg(all(feature = "rocket", feature = "rocket_csrf"))]
 impl<F: CsrfForm> ContextualExt for Contextual<'_, F> {
     fn verify(&mut self, token: &Option<CsrfToken>) {
         if let Some(ref value) = self.value {
@@ -89,6 +88,7 @@ impl<F: CsrfForm> ContextualExt for Contextual<'_, F> {
 #[error(transparent)]
 pub struct Error<E: std::error::Error>(#[from] pub E);
 
+#[cfg(feature = "rocket")]
 impl<'r, E: std::error::Error> Responder<'r, 'static> for Error<E> {
     fn respond_to(self, request: &'r Request<'_>) -> rocket::response::Result<'static> {
         eprintln!("responded with {} to {} request to {}", Status::InternalServerError, request.method(), request.uri());
@@ -101,9 +101,11 @@ impl<'r, E: std::error::Error> Responder<'r, 'static> for Error<E> {
 /// A URL without a hostname but with an absolute path and optional query.
 ///
 /// Wrapper type used here to allow decoding from URI query
+#[cfg(feature = "rocket")]
 #[derive(Clone)]
 pub struct Origin<'a>(pub uri::Origin<'a>);
 
+#[cfg(feature = "rocket")]
 #[rocket::async_trait]
 impl<'a> FromRequest<'a> for Origin<'a> {
     type Error = Never;
@@ -113,18 +115,21 @@ impl<'a> FromRequest<'a> for Origin<'a> {
     }
 }
 
+#[cfg(feature = "rocket")]
 impl<'a> FromFormField<'a> for Origin<'a> {
     fn from_value(field: form::ValueField<'a>) -> form::Result<'a, Self> {
         Ok(Self(uri::Origin::try_from(field.value).map_err(|e| form::Error::validation(e.to_string()))?))
     }
 }
 
+#[cfg(feature = "rocket")]
 impl<'a> UriDisplay<Query> for Origin<'a> {
     fn fmt(&self, f: &mut uri::fmt::Formatter<'_, Query>) -> fmt::Result {
         UriDisplay::fmt(&self.0.to_string(), f)
     }
 }
 
+#[cfg(feature = "rocket")]
 impl<'a> FromUriParam<Query, uri::Origin<'a>> for Origin<'a> {
     type Target = Self;
 
@@ -133,14 +138,17 @@ impl<'a> FromUriParam<Query, uri::Origin<'a>> for Origin<'a> {
     }
 }
 
+#[cfg(feature = "rocket")]
 impl_from_uri_param_identity!([Query] ('a) Origin<'a>);
 
+#[cfg(feature = "rocket")]
 impl From<Origin<'_>> for Cow<'_, str> {
     fn from(Origin(origin): Origin<'_>) -> Self {
         Self::Owned(origin.to_string())
     }
 }
 
+#[cfg(feature = "rocket")]
 impl fmt::Display for Origin<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
@@ -155,6 +163,7 @@ pub enum SuffixFromParamError<E> {
     Split,
 }
 
+#[cfg(feature = "rocket")]
 impl<'a, T: FromParam<'a>> FromParam<'a> for Suffix<'a, T> {
     type Error = SuffixFromParamError<T::Error>;
 
@@ -164,6 +173,7 @@ impl<'a, T: FromParam<'a>> FromParam<'a> for Suffix<'a, T> {
     }
 }
 
+#[cfg(feature = "rocket")]
 impl<'a, T: UriDisplay<Path>> UriDisplay<Path> for Suffix<'a, T> {
     fn fmt(&self, f: &mut uri::fmt::Formatter<'_, Path>) -> fmt::Result {
         self.0.fmt(f)?;
@@ -171,10 +181,12 @@ impl<'a, T: UriDisplay<Path>> UriDisplay<Path> for Suffix<'a, T> {
     }
 }
 
+#[cfg(feature = "rocket")]
 impl_from_uri_param_identity!([Path] ('a, T: UriDisplay<Path>) Suffix<'a, T>);
 
 pub struct OptSuffix<'a, T>(pub T, pub Option<&'a str>);
 
+#[cfg(feature = "rocket")]
 impl<'a, T: FromParam<'a>> FromParam<'a> for OptSuffix<'a, T> {
     type Error = T::Error;
 
@@ -188,6 +200,7 @@ impl<'a, T: FromParam<'a>> FromParam<'a> for OptSuffix<'a, T> {
     }
 }
 
+#[cfg(feature = "rocket")]
 impl<'a, T: UriDisplay<Path>> UriDisplay<Path> for OptSuffix<'a, T> {
     fn fmt(&self, f: &mut uri::fmt::Formatter<'_, Path>) -> fmt::Result {
         self.0.fmt(f)?;
@@ -198,4 +211,5 @@ impl<'a, T: UriDisplay<Path>> UriDisplay<Path> for OptSuffix<'a, T> {
     }
 }
 
+#[cfg(feature = "rocket")]
 impl_from_uri_param_identity!([Path] ('a, T: UriDisplay<Path>) OptSuffix<'a, T>);

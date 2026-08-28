@@ -283,21 +283,21 @@ impl Entry {
         let rocket_util = if internal { quote!(crate) } else { quote!(::rocket_util) };
         match self {
             Self::Cfg { predicate, body } => {
-                let body = body.0.into_iter().map(|entry| entry.to_tokens(internal));
-                quote!(#[cfg(#predicate)] { #(#body)* })
+                let body = body.0.to_tokens(internal);
+                quote!(#[cfg(#predicate)] { #body })
             }
             Self::For { pat, expr, body } => {
-                let body = body.0.into_iter().map(|entry| entry.to_tokens(internal));
-                quote!(for #pat in #expr { #(#body)* })
+                let body = body.0.to_tokens(internal);
+                quote!(for #pat in #expr { #body })
             }
             Self::If { cond, then_branch, else_branch: Some(else_branch) } => {
-                let then_branch = then_branch.0.into_iter().map(|entry| entry.to_tokens(internal));
+                let then_branch = then_branch.0.to_tokens(internal);
                 let else_branch = else_branch.to_tokens(internal);
-                quote!(if #cond { #(#then_branch)* } else { #else_branch })
+                quote!(if #cond { #then_branch } else { #else_branch })
             }
             Self::If { cond, then_branch, else_branch: None } => {
-                let then_branch = then_branch.0.into_iter().map(|entry| entry.to_tokens(internal));
-                quote!(if #cond { #(#then_branch)* })
+                let then_branch = then_branch.0.to_tokens(internal);
+                quote!(if #cond { #then_branch })
             }
             Self::Let { pat, init } => quote!(let #pat = #init;),
             Self::Match { expr, arms } => {
@@ -309,10 +309,10 @@ impl Entry {
                 quote!(match #expr { #(#arms),* })
             }
             Self::Unimplemented => quote!(unimplemented!();), //TODO stop generating code after this
-            Self::Unreachable => quote!(unreachable!();), //TODO stop generating code after this
+            Self::Unreachable => quote!(unreachable!();),
             Self::While { cond, body } => {
-                let body = body.0.into_iter().map(|entry| entry.to_tokens(internal));
-                quote!(while #cond { #(#body)* })
+                let body = body.0.to_tokens(internal);
+                quote!(while #cond { #body })
             }
             Self::Simple { tag: Some(tag), attrs, content } => {
                 let is_void = matches!(
@@ -335,37 +335,7 @@ impl Entry {
                         }
                         _ => quote_spanned!(expr.span()=> #rocket_util::ToHtml::push_html(&(#expr), &mut __rocket_util_buf);),
                     },
-                    Content::Nested(Input(entries)) => {
-                        // merge adjacent static entries into a single string literal
-                        let mut quote_buf = quote!();
-                        let mut str_buf = String::default();
-                        for entry in entries {
-                            if let Some(html) = entry.to_string() {
-                                str_buf.push_str(&html);
-                            } else {
-                                if !str_buf.is_empty() {
-                                    quote_buf = quote! {
-                                        #quote_buf
-                                        __rocket_util_buf.0.push_str(#str_buf);
-                                    };
-                                    str_buf.clear();
-                                }
-                                let entry = entry.to_tokens(internal);
-                                quote_buf = quote! {
-                                    #quote_buf
-                                    #entry
-                                }
-                            }
-                        }
-                        if !str_buf.is_empty() {
-                            quote_buf = quote! {
-                                #quote_buf
-                                __rocket_util_buf.0.push_str(#str_buf);
-                            };
-                            str_buf.clear();
-                        }
-                        quote_buf
-                    }
+                    Content::Nested(Input(entries)) => entries.to_tokens(internal),
                 };
                 let open_tag = format!("<{}", tag.unraw());
                 let attrs = attrs.into_iter().map(|Attr { name, value }| match value {
@@ -435,8 +405,8 @@ impl Entry {
                         _ => quote_spanned!(expr.span()=> #rocket_util::ToHtml::push_html(&(#expr), &mut __rocket_util_buf);),
                     },
                     Content::Nested(Input(entries)) => {
-                        let body = entries.into_iter().map(|entry| entry.to_tokens(internal));
-                        quote! {{ #(#body)* }}
+                        let body = entries.to_tokens(internal);
+                        quote! {{ #body }}
                     }
                 }
             }
@@ -505,6 +475,44 @@ impl Entry {
     }
 }
 
+trait EntryIteratorExt {
+    fn to_tokens(self, internal: bool) -> TokenStream;
+}
+
+impl<T: IntoIterator<Item = Entry>> EntryIteratorExt for T {
+    fn to_tokens(self, internal: bool) -> TokenStream {
+        // merge adjacent static entries into a single string literal
+        let mut quote_buf = quote!();
+        let mut str_buf = String::default();
+        for entry in self {
+            if let Some(html) = entry.to_string() {
+                str_buf.push_str(&html);
+            } else {
+                if !str_buf.is_empty() {
+                    quote_buf = quote! {
+                        #quote_buf
+                        __rocket_util_buf.0.push_str(#str_buf);
+                    };
+                    str_buf.clear();
+                }
+                let entry = entry.to_tokens(internal);
+                quote_buf = quote! {
+                    #quote_buf
+                    #entry
+                }
+            }
+        }
+        if !str_buf.is_empty() {
+            quote_buf = quote! {
+                #quote_buf
+                __rocket_util_buf.0.push_str(#str_buf);
+            };
+            str_buf.clear();
+        }
+        quote_buf
+    }
+}
+
 struct Input(Vec<Entry>);
 
 impl Parse for Input {
@@ -517,19 +525,14 @@ impl Parse for Input {
     }
 }
 
-impl Input {
-    fn to_tokens(self, internal: bool) -> TokenStream {
-        let rocket_util = if internal { quote!(crate) } else { quote!(::rocket_util) };
-        let entries = self.0.into_iter().map(|entry| entry.to_tokens(internal));
-        quote! {{
-            let mut __rocket_util_buf = #rocket_util::RawHtml(::std::string::String::new());
-            #(#entries)*
-            __rocket_util_buf
-        }}
-    }
-}
-
 pub(crate) fn mac(input: proc_macro::TokenStream, internal: bool) -> proc_macro::TokenStream {
-    let tokens = parse_macro_input!(input as Input).to_tokens(internal);
-    proc_macro::TokenStream::from(quote! {{ #[allow(unused)] #tokens }})
+    let rocket_util = if internal { quote!(crate) } else { quote!(::rocket_util) };
+    let tokens = parse_macro_input!(input as Input).0.to_tokens(internal);
+    proc_macro::TokenStream::from(quote! {{
+        #[allow(unused)] {
+            let mut __rocket_util_buf = #rocket_util::RawHtml(::std::string::String::new());
+            #tokens
+            __rocket_util_buf
+        }
+    }})
 }

@@ -33,7 +33,10 @@
             FromRequest,
             Request,
         },
-        response::Responder,
+        response::{
+            Redirect,
+            Responder,
+        },
     },
 };
 #[cfg(feature = "rocket_csrf")] use {
@@ -213,3 +216,28 @@ impl<'a, T: UriDisplay<Path>> UriDisplay<Path> for OptSuffix<'a, T> {
 
 #[cfg(feature = "rocket")]
 impl_from_uri_param_identity!([Path] ('a, T: UriDisplay<Path>) OptSuffix<'a, T>);
+
+#[cfg(feature = "rocket")]
+#[derive(Responder)]
+pub enum RedirectOrContent {
+    Redirect(Redirect),
+    Content(RawHtml<String>),
+}
+
+#[cfg(feature = "rocket")]
+#[derive(Responder)]
+pub enum StatusOrError<E> {
+    Status(Status),
+    Err(E),
+}
+
+#[cfg(feature = "rocket")]
+impl<E> StatusOrError<E> {
+    pub fn err_into<F>(self) -> StatusOrError<F>
+    where E: Into<F> {
+        match self {
+            Self::Status(status) => StatusOrError::Status(status),
+            Self::Err(e) => StatusOrError::Err(e.into()),
+        }
+    }
+}

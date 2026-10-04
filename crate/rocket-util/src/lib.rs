@@ -241,3 +241,23 @@ impl<E> StatusOrError<E> {
         }
     }
 }
+
+#[cfg(feature = "rocket")]
+pub trait ResultExt {
+    type Ok;
+    type Err;
+
+    fn soe<F>(self) -> Result<Self::Ok, StatusOrError<F>>
+    where Self::Err: Into<F>;
+}
+
+#[cfg(feature = "rocket")]
+impl<T, E> ResultExt for Result<T, E> {
+    type Ok = T;
+    type Err = E;
+
+    fn soe<F>(self) -> Result<T, StatusOrError<F>>
+    where E: Into<F> {
+        self.map_err(|e| StatusOrError::Err(e.into()))
+    }
+}

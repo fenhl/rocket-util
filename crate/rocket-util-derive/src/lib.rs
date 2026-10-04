@@ -65,6 +65,12 @@ pub fn derive_error(input: TokenStream) -> TokenStream {
                     ::rocket_util::rocket::response::Responder::respond_to(::rocket_util::Error(self), request)
                 }
             }
+
+            impl<T: ::core::convert::Into<#ty>> ::core::convert::From<T> for ::rocket_util::StatusOrError<#ty> {
+                fn from(error: T) -> Self {
+                    Self::Err(::core::convert::Into::into(error))
+                }
+            }
         }
     })
 }

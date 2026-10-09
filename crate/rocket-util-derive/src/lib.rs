@@ -1,6 +1,7 @@
 #![deny(rust_2018_idioms, unused, unused_crate_dependencies, unused_import_braces, unused_lifetimes, unused_qualifications, warnings)]
 
 use {
+    itertools::Itertools as _,
     proc_macro::TokenStream,
     quote::quote,
     syn::*,
@@ -42,7 +43,7 @@ pub fn derive_csrf_form(input: TokenStream) -> TokenStream {
 pub fn derive_error(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let ty = input.ident;
-    TokenStream::from(if input.attrs.iter().any(|attr| attr.path().is_ident("rocket_util") && attr.parse_args::<Ident>().is_ok_and(|ident| ident == "is_network_error")) {
+    let impl_responder = if input.attrs.iter().any(|attr| attr.path().is_ident("rocket_util") && attr.parse_args::<Ident>().is_ok_and(|ident| ident == "is_network_error")) {
         quote! {
             impl<'r> ::rocket_util::rocket::response::Responder<'r, 'static> for #ty {
                 fn respond_to(self, request: &'r ::rocket_util::rocket::Request<'_>) -> ::rocket_util::rocket::response::Result<'static> {
@@ -66,5 +67,26 @@ pub fn derive_error(input: TokenStream) -> TokenStream {
                 }
             }
         }
+    };
+    let soe_impls = if let Data::Enum(data) = input.data {
+        data.variants.into_iter()
+            .filter_map(|variant| variant.fields.into_iter().exactly_one().ok().filter(|field| field.attrs.iter().any(|attr| attr.meta.path().is_ident("from"))))
+            .map(|field| {
+                let field_ty = field.ty;
+                quote! {
+                    impl ::core::convert::From<#field_ty> for ::rocket_util::StatusOrError<#ty> {
+                        fn from(error: #field_ty) -> Self {
+                            Self::Err(<#ty as ::core::convert::From<#field_ty>>::from(error))
+                        }
+                    }
+                }
+            })
+            .collect()
+    } else {
+        Vec::default()
+    };
+    TokenStream::from(quote! {
+        #impl_responder
+        #(#soe_impls)*
     })
 }
